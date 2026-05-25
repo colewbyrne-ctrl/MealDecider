@@ -68,6 +68,7 @@ Frontend:
 Backend:
 
 - `DATABASE_URL`: optional SQLAlchemy database URL. Defaults to `sqlite:///./meal_decider.db` for local development.
+- On Vercel, if `DATABASE_URL` is missing, the app falls back to `sqlite:////tmp/meal_decider.db` so the API can boot, but this storage is temporary and can disappear between function invocations.
 - `CORS_ALLOWED_ORIGINS`: optional comma-separated list of allowed frontend origins when the API is hosted separately.
 
 ## Vercel Deployment

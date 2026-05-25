@@ -3,7 +3,9 @@ import json
 import os
 import re
 import secrets
+import tempfile
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode
 from urllib.error import HTTPError, URLError
@@ -18,7 +20,9 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sess
 
 
 def get_database_url() -> str:
-    database_url = os.getenv("DATABASE_URL", "sqlite:///./meal_decider.db")
+    temp_database_path = (Path(tempfile.gettempdir()) / "meal_decider.db").as_posix()
+    default_sqlite_url = f"sqlite:///{temp_database_path}" if os.getenv("VERCEL") else "sqlite:///./meal_decider.db"
+    database_url = os.getenv("DATABASE_URL", default_sqlite_url)
     if database_url.startswith("postgres://"):
         return database_url.replace("postgres://", "postgresql+psycopg://", 1)
     if database_url.startswith("postgresql://"):
