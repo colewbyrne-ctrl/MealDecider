@@ -3,6 +3,8 @@
 .env.*
 !.env.example
 .vercel/
+.pytest-tmp/
+pytest-cache-files-*/
 __pycache__/
 *.py[cod]
 *.db

@@ -14,20 +14,50 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy import ForeignKey, Integer, String, Text, create_engine, inspect, text
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
+
+def normalize_database_url(database_url: str, allow_sqlite: bool = False) -> str:
+    database_url = database_url.strip().strip("\"'")
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1)
+    elif database_url.startswith("postgresql://"):
+        database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+
+    try:
+        parsed_url = make_url(database_url)
+    except ArgumentError as exc:
+        raise RuntimeError(
+            "The Postgres connection string is not a valid SQLAlchemy URL. "
+            "It should look like postgresql://USER:PASSWORD@HOST:PORT/DATABASE?sslmode=require."
+        ) from exc
+
+    backend_name = parsed_url.get_backend_name()
+    if backend_name == "sqlite" and allow_sqlite:
+        return database_url
+    if backend_name != "postgresql":
+        raise RuntimeError("Only Postgres database URLs are supported.")
+    return database_url
 
 
 def get_database_url() -> str:
-    database_url = os.getenv("DATABASE_URL")
+    database_url = (
+        os.getenv("DATABASE_URL")
+        or os.getenv("POSTGRES_URL_NON_POOLING")
+        or os.getenv("POSTGRES_URL")
+    )
     if not database_url:
-        if os.getenv("VERCEL"):
-            raise RuntimeError("DATABASE_URL must be set to a Postgres connection string on Vercel.")
-        database_url = "sqlite:///./meal_decider.db"
-    if database_url.startswith("postgres://"):
-        return database_url.replace("postgres://", "postgresql+psycopg://", 1)
-    if database_url.startswith("postgresql://"):
-        return database_url.replace("postgresql://", "postgresql+psycopg://", 1)
-    return database_url
+        raise RuntimeError(
+            "A Postgres connection string is required. Set DATABASE_URL, "
+            "POSTGRES_URL_NON_POOLING, or POSTGRES_URL."
+        )
+    return normalize_database_url(database_url, allow_sqlite=os.getenv("MEAL_DECIDER_TESTING") == "1")
 
 
 DATABASE_URL = get_database_url()
@@ -36,7 +66,7 @@ THEMEALDB_FILTER_URL = "https://www.themealdb.com/api/json/v1/1/filter.php"
 THEMEALDB_LOOKUP_URL = "https://www.themealdb.com/api/json/v1/1/lookup.php"
 THEMEALDB_SEARCH_URL = "https://www.themealdb.com/api/json/v1/1/search.php"
 
-engine_options = {}
+engine_options = {"pool_pre_ping": True}
 if DATABASE_URL.startswith("sqlite"):
     engine_options["connect_args"] = {"check_same_thread": False}
 

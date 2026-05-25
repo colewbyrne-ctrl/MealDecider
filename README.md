@@ -16,8 +16,7 @@ Meal Decider is a full-stack recipe manager for keeping a private list of meal o
 
 - Frontend: React, Vite, CSS
 - Backend: Python, FastAPI, SQLAlchemy, Pydantic
-- Local database: SQLite
-- Hosted database: Postgres required for Vercel
+- Database: Postgres
 
 ## Project Structure
 
@@ -33,7 +32,6 @@ Meal Decider is a full-stack recipe manager for keeping a private list of meal o
 |-- src/
 |   |-- main.jsx         # React application
 |   `-- styles.css       # App styles
-`-- meal_decider.db      # Local SQLite database, generated at runtime
 ```
 
 ## Local Setup
@@ -43,6 +41,12 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 npm install
+```
+
+Create a local `.env` file with your Postgres connection string:
+
+```text
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE?sslmode=require
 ```
 
 Start the backend:
@@ -67,7 +71,9 @@ Frontend:
 
 Backend:
 
-- `DATABASE_URL`: optional for local development, where it defaults to `sqlite:///./meal_decider.db`. Required on Vercel and should be a Postgres connection string.
+- `DATABASE_URL`: Postgres connection string.
+- `POSTGRES_URL_NON_POOLING`: optional fallback used when `DATABASE_URL` is not set.
+- `POSTGRES_URL`: optional fallback used when neither `DATABASE_URL` nor `POSTGRES_URL_NON_POOLING` is set.
 - `CORS_ALLOWED_ORIGINS`: optional comma-separated list of allowed frontend origins when the API is hosted separately.
 
 ## Vercel Deployment
@@ -77,7 +83,7 @@ This repo includes a Vercel-ready setup:
 - `vercel.json` builds the Vite frontend into `dist`
 - requests under `/api/*` go to the FastAPI entrypoint at `api/index.py`
 
-For hosted deployment, set `DATABASE_URL` to a persistent Postgres database. SQLite is only for local development.
+For hosted deployment, set `DATABASE_URL` to a persistent Postgres database. Vercel Marketplace Postgres integrations may also inject `POSTGRES_URL` or `POSTGRES_URL_NON_POOLING`, which the app can use automatically.
 
 Recommended Vercel settings:
 
@@ -92,6 +98,7 @@ Recommended Vercel settings:
 ```powershell
 npm run build
 .\.venv\Scripts\python.exe -m py_compile main.py api\index.py
+.\.venv\Scripts\python.exe -m pytest
 ```
 
 To test the Vercel API wrapper locally:
