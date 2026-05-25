@@ -17,7 +17,7 @@ Meal Decider is a full-stack recipe manager for keeping a private list of meal o
 - Frontend: React, Vite, CSS
 - Backend: Python, FastAPI, SQLAlchemy, Pydantic
 - Local database: SQLite
-- Hosted database: Postgres recommended for Vercel
+- Hosted database: Postgres required for Vercel
 
 ## Project Structure
 
@@ -67,8 +67,7 @@ Frontend:
 
 Backend:
 
-- `DATABASE_URL`: optional SQLAlchemy database URL. Defaults to `sqlite:///./meal_decider.db` for local development.
-- On Vercel, if `DATABASE_URL` is missing, the app falls back to `sqlite:////tmp/meal_decider.db` so the API can boot, but this storage is temporary and can disappear between function invocations.
+- `DATABASE_URL`: optional for local development, where it defaults to `sqlite:///./meal_decider.db`. Required on Vercel and should be a Postgres connection string.
 - `CORS_ALLOWED_ORIGINS`: optional comma-separated list of allowed frontend origins when the API is hosted separately.
 
 ## Vercel Deployment
@@ -78,7 +77,7 @@ This repo includes a Vercel-ready setup:
 - `vercel.json` builds the Vite frontend into `dist`
 - requests under `/api/*` go to the FastAPI entrypoint at `api/index.py`
 
-For a real hosted deployment, set `DATABASE_URL` to a persistent Postgres database. Do not rely on SQLite on Vercel because serverless function filesystems are not persistent application storage.
+For hosted deployment, set `DATABASE_URL` to a persistent Postgres database. SQLite is only for local development.
 
 Recommended Vercel settings:
 
