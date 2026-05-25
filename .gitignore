@@ -1,9 +1,13 @@
 .venv/
 .env
 .env.*
+!.env.example
 .vercel/
 __pycache__/
 *.py[cod]
 *.db
 node_modules/
 dist/
+
+.vercel
+.env*

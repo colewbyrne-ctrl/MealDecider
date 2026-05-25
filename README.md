@@ -76,7 +76,6 @@ This repo includes a Vercel-ready setup:
 
 - `vercel.json` builds the Vite frontend into `dist`
 - requests under `/api/*` go to the FastAPI entrypoint at `api/index.py`
-- all other requests fall back to `index.html` for the React app
 
 For a real hosted deployment, set `DATABASE_URL` to a persistent Postgres database. Do not rely on SQLite on Vercel because serverless function filesystems are not persistent application storage.
 
