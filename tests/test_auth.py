@@ -124,3 +124,22 @@ def test_photo_analysis_reports_missing_configuration(app_module, monkeypatch):
 
     assert response.status_code == 503
     assert "OPENAI_API_KEY" in response.json()["detail"]
+
+
+def test_photo_analysis_rejects_large_images(app_module, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    client = TestClient(app_module.app)
+
+    register_response = client.post(
+        "/auth/register",
+        json={"name": "Cole", "email": "large-photo@example.com", "password": "correct horse"},
+    )
+    token = register_response.json()["token"]
+
+    response = client.post(
+        "/recipes/photo/analyze",
+        json={"image_data_url": f"data:image/jpeg;base64,{'a' * 3_000_001}"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 413

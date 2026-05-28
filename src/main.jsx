@@ -324,6 +324,30 @@ function App() {
     });
   }
 
+  function loadPhoto(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("Could not prepare the selected photo"));
+      image.src = dataUrl;
+    });
+  }
+
+  async function preparePhotoForScan(file) {
+    const originalDataUrl = await readPhotoFile(file);
+    const image = await loadPhoto(originalDataUrl);
+    const maxDimension = 1280;
+    const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    context.drawImage(image, 0, 0, width, height);
+    return canvas.toDataURL("image/jpeg", 0.82);
+  }
+
   async function analyzeRecipePhoto(event) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -332,16 +356,19 @@ function App() {
     }
 
     setLoading(true);
-    setMessage("");
+    setMessage("Scanning photo...");
 
     try {
-      const imageDataUrl = await readPhotoFile(file);
+      const imageDataUrl = await preparePhotoForScan(file);
       setPhotoPreview(imageDataUrl);
       const recipe = await request("/recipes/photo/analyze", {
         method: "POST",
         headers: authHeaders,
         body: JSON.stringify({ image_data_url: imageDataUrl }),
       });
+      if (!recipe?.name || !recipe?.cuisine) {
+        throw new Error("The photo scanner did not return enough recipe details");
+      }
       setRecipeForm({
         name: recipe.name || "",
         time_minutes: recipe.time_minutes || 30,

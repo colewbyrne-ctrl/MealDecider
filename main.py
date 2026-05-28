@@ -513,9 +513,9 @@ def analyze_meal_photo(image_data_url: str) -> RecipeCreate:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Upload a valid image from your camera or photo library",
         )
-    if len(image_data_url) > 8_000_000:
+    if len(image_data_url) > 3_000_000:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail="Image is too large. Try a smaller photo.",
         )
 
@@ -590,9 +590,13 @@ def analyze_meal_photo(image_data_url: str) -> RecipeCreate:
             detail="The photo scanner returned an unreadable recipe",
         ) from exc
     except Exception as exc:
+        message = str(exc).strip()
+        detail = "Could not scan the meal photo right now"
+        if message:
+            detail = f"{detail}: {message[:180]}"
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Could not scan the meal photo right now",
+            detail=detail,
         ) from exc
 
     return RecipeCreate(
