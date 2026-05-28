@@ -7,6 +7,7 @@ Meal Decider is a full-stack recipe manager for keeping a private list of meal o
 - Account registration, login, logout, and bearer-token sessions
 - Private recipe collections scoped to the signed-in user
 - Recipe create, read, update, delete, search, and detail views
+- Camera/photo recipe import that drafts meal attributes from an image
 - Meal quiz that ranks saved recipes by max time, max difficulty, cuisine, and tags
 - External recipe suggestions from TheMealDB, with optional save into your account
 - Responsive Vite React interface for desktop, landscape, and portrait layouts
@@ -75,6 +76,8 @@ Backend:
 - `POSTGRES_URL_NON_POOLING`: optional fallback used when `DATABASE_URL` is not set.
 - `POSTGRES_URL`: optional fallback used when neither `DATABASE_URL` nor `POSTGRES_URL_NON_POOLING` is set.
 - `CORS_ALLOWED_ORIGINS`: optional comma-separated list of allowed frontend origins when the API is hosted separately.
+- `OPENAI_API_KEY`: required for camera/photo recipe scanning.
+- `OPENAI_VISION_MODEL`: optional vision model override. Defaults to `gpt-5-mini`.
 
 ## Vercel Deployment
 

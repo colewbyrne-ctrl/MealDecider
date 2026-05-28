@@ -172,6 +172,10 @@ class RecipeCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class PhotoMealAnalyzeRequest(BaseModel):
+    image_data_url: str = Field(..., min_length=1)
+
+
 class RecipeUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=120)
     time_minutes: Optional[int] = Field(default=None, ge=0)
@@ -500,6 +504,105 @@ def build_external_recipe(meal: dict, current_user: User) -> Recipe:
         source="themealdb",
         source_url=source_url,
         external_id=meal.get("idMeal"),
+    )
+
+
+def analyze_meal_photo(image_data_url: str) -> RecipeCreate:
+    if not image_data_url.startswith("data:image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Upload a valid image from your camera or photo library",
+        )
+    if len(image_data_url) > 8_000_000:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Image is too large. Try a smaller photo.",
+        )
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Photo scanning is not configured. Set OPENAI_API_KEY on the server.",
+        )
+
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=api_key)
+        response = client.responses.create(
+            model=os.getenv("OPENAI_VISION_MODEL", "gpt-5-mini"),
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": (
+                                "Analyze this meal photo and return a practical saved recipe. "
+                                "Infer the most likely dish name, cuisine, approximate prep/cook "
+                                "time in minutes, difficulty, likely equipment, tags, and concise notes. "
+                                "If the photo is unclear, still make the best conservative estimate."
+                            ),
+                        },
+                        {
+                            "type": "input_image",
+                            "image_url": image_data_url,
+                            "detail": "low",
+                        },
+                    ],
+                }
+            ],
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "meal_photo_recipe",
+                    "schema": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "name": {"type": "string", "minLength": 1, "maxLength": 120},
+                            "time_minutes": {"type": "integer", "minimum": 0, "maximum": 480},
+                            "cuisine": {"type": "string", "minLength": 1, "maxLength": 80},
+                            "difficulty": {"type": "string", "enum": ["easy", "medium", "hard"]},
+                            "equipment": {"type": "string", "maxLength": 1000},
+                            "tags": {"type": "string", "maxLength": 1000},
+                            "notes": {"type": "string", "maxLength": 2000},
+                        },
+                        "required": [
+                            "name",
+                            "time_minutes",
+                            "cuisine",
+                            "difficulty",
+                            "equipment",
+                            "tags",
+                            "notes",
+                        ],
+                    },
+                    "strict": True,
+                }
+            },
+        )
+        payload = json.loads(response.output_text)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The photo scanner returned an unreadable recipe",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not scan the meal photo right now",
+        ) from exc
+
+    return RecipeCreate(
+        name=payload.get("name", "Scanned meal"),
+        time_minutes=payload.get("time_minutes", 0),
+        cuisine=payload.get("cuisine", "Unknown"),
+        difficulty=normalize_difficulty(payload.get("difficulty")),
+        equipment=payload.get("equipment") or None,
+        tags=payload.get("tags") or "photo scan",
+        notes=payload.get("notes") or "Created from a meal photo.",
     )
 
 
@@ -980,6 +1083,14 @@ def create_recipe(
     db.commit()
     db.refresh(recipe)
     return recipe
+
+
+@app.post("/recipes/photo/analyze", response_model=RecipeCreate)
+def analyze_recipe_photo(
+    photo_data: PhotoMealAnalyzeRequest,
+    current_user: User = Depends(get_current_user),
+):
+    return analyze_meal_photo(photo_data.image_data_url)
 
 
 @app.put("/recipes/{recipe_id}", response_model=RecipeRead)

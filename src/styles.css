@@ -315,8 +315,42 @@ textarea:focus {
   padding: 22px;
 }
 
+.side-stack {
+  display: grid;
+  gap: 16px;
+}
+
 .side-panel p {
   margin-bottom: 0;
+}
+
+.photo-import {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #d69a51;
+  color: #172033;
+  font-size: 14px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.photo-import:hover {
+  background: #c88636;
+}
+
+.photo-import input {
+  display: none;
+}
+
+.photo-preview {
+  width: 100%;
+  max-height: 220px;
+  border: 1px solid #d5c7b4;
+  border-radius: 8px;
+  object-fit: cover;
 }
 
 .form-grid {

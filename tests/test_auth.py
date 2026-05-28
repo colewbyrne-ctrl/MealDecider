@@ -104,3 +104,23 @@ def test_recommendations_return_requested_unique_recipe_count(app_module):
     names = [option["recipe"]["name"] for option in response.json()["options"]]
     assert len(names) == 3
     assert len(set(names)) == 3
+
+
+def test_photo_analysis_reports_missing_configuration(app_module, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    client = TestClient(app_module.app)
+
+    register_response = client.post(
+        "/auth/register",
+        json={"name": "Cole", "email": "photo@example.com", "password": "correct horse"},
+    )
+    token = register_response.json()["token"]
+
+    response = client.post(
+        "/recipes/photo/analyze",
+        json={"image_data_url": "data:image/png;base64,abc123"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 503
+    assert "OPENAI_API_KEY" in response.json()["detail"]

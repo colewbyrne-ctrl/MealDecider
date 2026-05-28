@@ -48,6 +48,7 @@ function App() {
   const [externalRecommendations, setExternalRecommendations] = useState([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState("");
 
   const authHeaders = useMemo(
     () => ({
@@ -314,6 +315,52 @@ function App() {
     }
   }
 
+  function readPhotoFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("Could not read the selected photo"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function analyzeRecipePhoto(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) {
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const imageDataUrl = await readPhotoFile(file);
+      setPhotoPreview(imageDataUrl);
+      const recipe = await request("/recipes/photo/analyze", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ image_data_url: imageDataUrl }),
+      });
+      setRecipeForm({
+        name: recipe.name || "",
+        time_minutes: recipe.time_minutes || 30,
+        cuisine: recipe.cuisine || "",
+        difficulty: recipe.difficulty || "easy",
+        equipment: recipe.equipment || "",
+        tags: recipe.tags || "",
+        notes: recipe.notes || "",
+      });
+      setEditingId(null);
+      setPage("manage");
+      setMessage("Photo scanned. Review the recipe before saving.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function saveExternalRecommendation(option) {
     if (!option?.recipe.external_id) {
       setMessage("This external recipe cannot be saved.");
@@ -485,15 +532,35 @@ function App() {
           </div>
         </form>
 
-        <div className="side-panel">
-          <h3>Saved Recipes</h3>
-          <p>{recipes.length} recipes are available for search and meal decisions.</p>
-          <button className="primary" onClick={generateExternalRecipe} disabled={loading}>
-            {loading ? "Generating..." : "Find new recipe"}
-          </button>
-          <button className="secondary" onClick={() => setPage("recipes")}>
-            Open recipe list
-          </button>
+        <div className="side-stack">
+          <div className="side-panel">
+            <h3>Photo import</h3>
+            <p>Use your camera or photo library to draft a recipe automatically.</p>
+            <label className="photo-import">
+              <span>{loading ? "Scanning..." : "Scan meal photo"}</span>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={analyzeRecipePhoto}
+                disabled={loading}
+              />
+            </label>
+            {photoPreview && (
+              <img className="photo-preview" src={photoPreview} alt="Meal selected for scanning" />
+            )}
+          </div>
+
+          <div className="side-panel">
+            <h3>Saved recipes</h3>
+            <p>{recipes.length} recipes are available for search and meal decisions.</p>
+            <button className="primary" onClick={generateExternalRecipe} disabled={loading}>
+              {loading ? "Generating..." : "Find new recipe"}
+            </button>
+            <button className="secondary" onClick={() => setPage("recipes")}>
+              Open recipe list
+            </button>
+          </div>
         </div>
       </div>
     );
