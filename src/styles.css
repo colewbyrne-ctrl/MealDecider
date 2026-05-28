@@ -324,6 +324,12 @@ textarea:focus {
   margin-bottom: 0;
 }
 
+.photo-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 .photo-import {
   display: inline-flex;
   min-height: 46px;
@@ -343,6 +349,17 @@ textarea:focus {
 
 .photo-import input {
   display: none;
+}
+
+.secondary-photo {
+  border: 1px solid #d5c7b4;
+  background: #fff8ec;
+  color: #263244;
+}
+
+.secondary-photo:hover {
+  border-color: #bf9e73;
+  background: #f2e4cf;
 }
 
 .photo-preview {
@@ -602,5 +619,9 @@ textarea:focus {
     align-items: flex-start;
     flex-direction: column;
     gap: 8px;
+  }
+
+  .photo-actions {
+    grid-template-columns: 1fr;
   }
 }

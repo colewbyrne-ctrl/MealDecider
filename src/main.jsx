@@ -536,16 +536,27 @@ function App() {
           <div className="side-panel">
             <h3>Photo import</h3>
             <p>Use your camera or photo library to draft a recipe automatically.</p>
-            <label className="photo-import">
-              <span>{loading ? "Scanning..." : "Scan meal photo"}</span>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={analyzeRecipePhoto}
-                disabled={loading}
-              />
-            </label>
+            <div className="photo-actions">
+              <label className="photo-import">
+                <span>{loading ? "Scanning..." : "Use camera"}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={analyzeRecipePhoto}
+                  disabled={loading}
+                />
+              </label>
+              <label className="photo-import secondary-photo">
+                <span>Choose photo</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={analyzeRecipePhoto}
+                  disabled={loading}
+                />
+              </label>
+            </div>
             {photoPreview && (
               <img className="photo-preview" src={photoPreview} alt="Meal selected for scanning" />
             )}
