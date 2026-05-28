@@ -181,16 +181,28 @@ function App() {
 
     setLoading(true);
     try {
-      await request(editingId ? `/recipes/${editingId}` : "/recipes", {
+      const savedRecipe = await request(editingId ? `/recipes/${editingId}` : "/recipes", {
         method: editingId ? "PUT" : "POST",
         headers: authHeaders,
         body: JSON.stringify(payload),
       });
       setRecipeForm(blankRecipe);
       setEditingId(null);
-      await loadRecipes();
+      setRecipes((currentRecipes) => {
+        const existingIndex = currentRecipes.findIndex((recipe) => recipe.id === savedRecipe.id);
+        if (existingIndex === -1) {
+          return [...currentRecipes, savedRecipe].sort((left, right) =>
+            left.name.localeCompare(right.name),
+          );
+        }
+        return currentRecipes.map((recipe) =>
+          recipe.id === savedRecipe.id ? savedRecipe : recipe,
+        );
+      });
+      setSelectedRecipeId(savedRecipe.id);
       setMessage(editingId ? "Recipe updated." : "Recipe added.");
       setPage("recipes");
+      await loadRecipes();
     } catch (error) {
       setMessage(error.message);
     } finally {

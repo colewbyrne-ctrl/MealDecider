@@ -76,6 +76,30 @@ def test_recommendations_use_time_and_difficulty_as_maximums(app_module):
     assert names == ["Quick Pasta"]
 
 
+def test_created_recipe_is_returned_for_user_profile(app_module):
+    client = TestClient(app_module.app)
+
+    register_response = client.post(
+        "/auth/register",
+        json={"name": "Cole", "email": "profile-recipes@example.com", "password": "correct horse"},
+    )
+    token = register_response.json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    create_response = client.post(
+        "/recipes",
+        json={"name": "Profile Pasta", "time_minutes": 20, "cuisine": "Italian", "difficulty": "easy"},
+        headers=headers,
+    )
+    assert create_response.status_code == 201
+    created_recipe = create_response.json()
+    assert created_recipe["owner_id"] == register_response.json()["user"]["id"]
+
+    list_response = client.get("/recipes", headers=headers)
+    assert list_response.status_code == 200
+    assert [recipe["name"] for recipe in list_response.json()] == ["Profile Pasta"]
+
+
 def test_recommendations_return_requested_unique_recipe_count(app_module):
     client = TestClient(app_module.app)
 
