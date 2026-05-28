@@ -16,6 +16,22 @@ def test_database_url_normalization_accepts_common_postgres_forms(app_module):
         app_module.normalize_database_url("postgresql://user:pass@example.com:5432/meals")
         == "postgresql+psycopg://user:pass@example.com:5432/meals"
     )
+    assert (
+        app_module.normalize_database_url(
+            "DATABASE_URL='postgresql://user:pass@example.com:5432/meals?sslmode=require'"
+        )
+        == "postgresql+psycopg://user:pass@example.com:5432/meals?sslmode=require"
+    )
+
+
+def test_database_url_selection_skips_invalid_higher_priority_env_var(app_module, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "not a url")
+    monkeypatch.setenv("POSTGRES_URL_NON_POOLING", "postgresql://user:pass@example.com:5432/meals")
+
+    assert (
+        app_module.get_database_url()
+        == "postgresql+psycopg://user:pass@example.com:5432/meals"
+    )
 
 
 def test_database_url_normalization_rejects_invalid_or_non_postgres_urls(app_module):

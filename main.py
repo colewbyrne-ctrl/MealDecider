@@ -19,12 +19,23 @@ from sqlalchemy.exc import ArgumentError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 from dotenv import load_dotenv
 
-
 load_dotenv()
 
 
-def normalize_database_url(database_url: str, allow_sqlite: bool = False) -> str:
+DATABASE_URL_ENV_VARS = ("DATABASE_URL", "POSTGRES_URL_NON_POOLING", "POSTGRES_URL")
+
+
+def clean_database_url(database_url: str) -> str:
     database_url = database_url.strip().strip("\"'")
+    for env_var in DATABASE_URL_ENV_VARS:
+        prefix = f"{env_var}="
+        if database_url.startswith(prefix):
+            return database_url[len(prefix) :].strip().strip("\"'")
+    return database_url
+
+
+def normalize_database_url(database_url: str, allow_sqlite: bool = False) -> str:
+    database_url = clean_database_url(database_url)
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1)
     elif database_url.startswith("postgresql://"):
@@ -47,17 +58,30 @@ def normalize_database_url(database_url: str, allow_sqlite: bool = False) -> str
 
 
 def get_database_url() -> str:
-    database_url = (
-        os.getenv("DATABASE_URL")
-        or os.getenv("POSTGRES_URL_NON_POOLING")
-        or os.getenv("POSTGRES_URL")
-    )
-    if not database_url:
+    errors = []
+    for env_var in DATABASE_URL_ENV_VARS:
+        database_url = os.getenv(env_var)
+        if not database_url:
+            continue
+        try:
+            return normalize_database_url(
+                database_url,
+                allow_sqlite=os.getenv("MEAL_DECIDER_TESTING") == "1",
+            )
+        except RuntimeError as exc:
+            errors.append(f"{env_var}: {exc}")
+
+    if errors:
         raise RuntimeError(
-            "A Postgres connection string is required. Set DATABASE_URL, "
-            "POSTGRES_URL_NON_POOLING, or POSTGRES_URL."
+            "No configured database connection string could be used. "
+            f"Checked {', '.join(DATABASE_URL_ENV_VARS)}. "
+            f"Errors: {'; '.join(errors)}"
         )
-    return normalize_database_url(database_url, allow_sqlite=os.getenv("MEAL_DECIDER_TESTING") == "1")
+
+    raise RuntimeError(
+        "A Postgres connection string is required. Set DATABASE_URL, "
+        "POSTGRES_URL_NON_POOLING, or POSTGRES_URL."
+    )
 
 
 DATABASE_URL = get_database_url()
