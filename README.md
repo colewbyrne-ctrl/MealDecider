@@ -76,8 +76,10 @@ Backend:
 - `POSTGRES_URL_NON_POOLING`: optional fallback used when `DATABASE_URL` is not set.
 - `POSTGRES_URL`: optional fallback used when neither `DATABASE_URL` nor `POSTGRES_URL_NON_POOLING` is set.
 - `CORS_ALLOWED_ORIGINS`: optional comma-separated list of allowed frontend origins when the API is hosted separately.
-- `OPENAI_API_KEY`: required for camera/photo recipe scanning.
-- `OPENAI_VISION_MODEL`: optional vision model override. Defaults to `gpt-5-mini`.
+- `ANTHROPIC_API_KEY`: required for camera/photo recipe scanning with Claude.
+- `ANTHROPIC_VISION_MODEL`: optional Claude model override. Defaults to `claude-sonnet-4-5`.
+
+Photo scanning uses Anthropic's Claude API. In Vercel, add `ANTHROPIC_API_KEY` as a server-side environment variable; do not expose it in frontend code.
 
 ## Vercel Deployment
 

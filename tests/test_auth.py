@@ -107,7 +107,7 @@ def test_recommendations_return_requested_unique_recipe_count(app_module):
 
 
 def test_photo_analysis_reports_missing_configuration(app_module, monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     client = TestClient(app_module.app)
 
     register_response = client.post(
@@ -123,11 +123,11 @@ def test_photo_analysis_reports_missing_configuration(app_module, monkeypatch):
     )
 
     assert response.status_code == 503
-    assert "OPENAI_API_KEY" in response.json()["detail"]
+    assert "ANTHROPIC_API_KEY" in response.json()["detail"]
 
 
 def test_photo_analysis_rejects_large_images(app_module, monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     client = TestClient(app_module.app)
 
     register_response = client.post(

@@ -519,45 +519,34 @@ def analyze_meal_photo(image_data_url: str) -> RecipeCreate:
             detail="Image is too large. Try a smaller photo.",
         )
 
-    api_key = os.getenv("OPENAI_API_KEY")
+    try:
+        header, image_base64 = image_data_url.split(",", 1)
+        media_type = header.removeprefix("data:").split(";", 1)[0]
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Upload a valid image from your camera or photo library",
+        ) from exc
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Photo scanning is not configured. Set OPENAI_API_KEY on the server.",
+            detail="Photo scanning is not configured. Set ANTHROPIC_API_KEY on the server.",
         )
 
     try:
-        from openai import OpenAI
+        from anthropic import Anthropic
 
-        client = OpenAI(api_key=api_key)
-        response = client.responses.create(
-            model=os.getenv("OPENAI_VISION_MODEL", "gpt-5-mini"),
-            input=[
+        client = Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=os.getenv("ANTHROPIC_VISION_MODEL", "claude-sonnet-4-5"),
+            max_tokens=800,
+            tools=[
                 {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": (
-                                "Analyze this meal photo and return a practical saved recipe. "
-                                "Infer the most likely dish name, cuisine, approximate prep/cook "
-                                "time in minutes, difficulty, likely equipment, tags, and concise notes. "
-                                "If the photo is unclear, still make the best conservative estimate."
-                            ),
-                        },
-                        {
-                            "type": "input_image",
-                            "image_url": image_data_url,
-                            "detail": "low",
-                        },
-                    ],
-                }
-            ],
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "meal_photo_recipe",
-                    "schema": {
+                    "name": "create_recipe_from_photo",
+                    "description": "Create a practical saved recipe from a meal photo.",
+                    "input_schema": {
                         "type": "object",
                         "additionalProperties": False,
                         "properties": {
@@ -579,16 +568,41 @@ def analyze_meal_photo(image_data_url: str) -> RecipeCreate:
                             "notes",
                         ],
                     },
-                    "strict": True,
                 }
-            },
+            ],
+            tool_choice={"type": "tool", "name": "create_recipe_from_photo"},
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": image_base64,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": (
+                                "Analyze this meal photo and return a practical saved recipe. "
+                                "Infer the most likely dish name, cuisine, approximate prep/cook "
+                                "time in minutes, difficulty, likely equipment, tags, and concise notes. "
+                                "If the photo is unclear, still make the best conservative estimate."
+                            ),
+                        },
+                    ],
+                }
+            ],
         )
-        payload = json.loads(response.output_text)
-    except json.JSONDecodeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="The photo scanner returned an unreadable recipe",
-        ) from exc
+        payload = None
+        for block in response.content:
+            if getattr(block, "type", None) == "tool_use" and getattr(block, "name", None) == "create_recipe_from_photo":
+                payload = block.input
+                break
+        if not isinstance(payload, dict):
+            raise ValueError("Claude did not return recipe details")
     except Exception as exc:
         message = str(exc).strip()
         detail = "Could not scan the meal photo right now"
