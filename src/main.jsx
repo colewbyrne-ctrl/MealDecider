@@ -103,7 +103,11 @@ function App() {
       let detail = "Request failed";
       try {
         const body = await response.json();
-        detail = body.detail || detail;
+        if (Array.isArray(body.detail)) {
+          detail = body.detail.map((item) => item.msg || item.message || "Invalid field").join(", ");
+        } else {
+          detail = body.detail || detail;
+        }
       } catch {
         detail = response.statusText;
       }
@@ -155,14 +159,27 @@ function App() {
 
   async function saveRecipe(event) {
     event.preventDefault();
-    setLoading(true);
     setMessage("");
+
+    const recipeName = recipeForm.name.trim();
+    const cuisine = recipeForm.cuisine.trim();
+    const timeMinutes = Number(recipeForm.time_minutes);
+    if (!recipeName || !cuisine || Number.isNaN(timeMinutes) || timeMinutes < 0) {
+      setMessage("Add a recipe name, cuisine, and valid time before saving.");
+      return;
+    }
 
     const payload = {
       ...recipeForm,
-      time_minutes: Number(recipeForm.time_minutes),
+      name: recipeName,
+      cuisine,
+      time_minutes: timeMinutes,
+      equipment: recipeForm.equipment.trim() || null,
+      tags: recipeForm.tags.trim() || null,
+      notes: recipeForm.notes.trim() || null,
     };
 
+    setLoading(true);
     try {
       await request(editingId ? `/recipes/${editingId}` : "/recipes", {
         method: editingId ? "PUT" : "POST",
@@ -470,7 +487,7 @@ function App() {
   function renderManagePage() {
     return (
       <div className="content-grid">
-        <form className="recipe-form" onSubmit={saveRecipe}>
+        <form className="recipe-form" onSubmit={saveRecipe} noValidate>
           <h3>{editingId ? "Edit Recipe" : "Add Recipe"}</h3>
           <div className="form-grid">
             <label>
@@ -493,7 +510,7 @@ function App() {
               Time
               <input
                 type="number"
-                min="1"
+                min="0"
                 value={recipeForm.time_minutes}
                 onChange={(event) =>
                   setRecipeForm({ ...recipeForm, time_minutes: event.target.value })
@@ -541,7 +558,7 @@ function App() {
             />
           </label>
           <div className="actions">
-            <button className="primary" disabled={loading}>
+            <button type="submit" className="primary" disabled={loading}>
               {editingId ? "Save changes" : "Add recipe"}
             </button>
             {editingId && (
