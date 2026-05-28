@@ -44,3 +44,33 @@ def test_register_login_me_and_logout_flow(app_module):
 
     logged_out_response = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert logged_out_response.status_code == 401
+
+
+def test_recommendations_use_time_and_difficulty_as_maximums(app_module):
+    client = TestClient(app_module.app)
+
+    register_response = client.post(
+        "/auth/register",
+        json={"name": "Cole", "email": "threshold@example.com", "password": "correct horse"},
+    )
+    token = register_response.json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    recipes = [
+        {"name": "Quick Pasta", "time_minutes": 20, "cuisine": "Italian", "difficulty": "easy"},
+        {"name": "Slow Roast", "time_minutes": 90, "cuisine": "American", "difficulty": "easy"},
+        {"name": "Fast Project", "time_minutes": 25, "cuisine": "French", "difficulty": "hard"},
+    ]
+    for recipe in recipes:
+        response = client.post("/recipes", json=recipe, headers=headers)
+        assert response.status_code == 201
+
+    response = client.post(
+        "/recipes/recommend",
+        json={"max_time_minutes": 30, "difficulty": "medium", "count": 5},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    names = [option["recipe"]["name"] for option in response.json()["options"]]
+    assert names == ["Quick Pasta"]

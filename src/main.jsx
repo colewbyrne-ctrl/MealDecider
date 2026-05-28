@@ -10,29 +10,34 @@ const blankRecipe = {
   time_minutes: 30,
   cuisine: "",
   difficulty: "easy",
-  servings: 2,
   equipment: "",
   tags: "",
   notes: "",
 };
 const blankQuiz = {
   max_time_minutes: 30,
-  servings: 2,
   difficulty: "easy",
   cuisine: "",
   tags: "",
   saved_count: 1,
 };
 
+function readStoredUser() {
+  try {
+    const saved = localStorage.getItem("meal_user");
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    localStorage.removeItem("meal_user");
+    return null;
+  }
+}
+
 function App() {
   const [page, setPage] = useState("manage");
   const [authMode, setAuthMode] = useState("login");
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "" });
   const [token, setToken] = useState(() => localStorage.getItem("meal_token") || "");
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem("meal_user");
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [user, setUser] = useState(readStoredUser);
   const [recipes, setRecipes] = useState([]);
   const [recipeForm, setRecipeForm] = useState(blankRecipe);
   const [editingId, setEditingId] = useState(null);
@@ -155,7 +160,6 @@ function App() {
     const payload = {
       ...recipeForm,
       time_minutes: Number(recipeForm.time_minutes),
-      servings: Number(recipeForm.servings),
     };
 
     try {
@@ -211,7 +215,6 @@ function App() {
       time_minutes: recipe.time_minutes,
       cuisine: recipe.cuisine,
       difficulty: recipe.difficulty,
-      servings: recipe.servings,
       equipment: recipe.equipment || "",
       tags: recipe.tags || "",
       notes: recipe.notes || "",
@@ -229,7 +232,6 @@ function App() {
     const payload = {
       ...quizForm,
       max_time_minutes: Number(quizForm.max_time_minutes),
-      servings: Number(quizForm.servings),
       count: Number(quizForm.saved_count),
       cuisine: quizForm.cuisine.trim() || null,
       tags: quizForm.tags.trim() || null,
@@ -245,7 +247,8 @@ function App() {
       if (data.options?.[0]) {
         setSelectedRecipeId(data.options[0].recipe.id);
       }
-      setMessage(`Found ${(data.options || []).length} saved recipe option${(data.options || []).length === 1 ? "" : "s"}.`);
+      const count = (data.options || []).length;
+      setMessage(`Found ${count} saved recipe option${count === 1 ? "" : "s"}.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -269,7 +272,8 @@ function App() {
       if (data.options?.[0]) {
         setSelectedRecipeId(data.options[0].recipe.id);
       }
-      setMessage(`Randomly picked ${(data.options || []).length} saved recipe option${(data.options || []).length === 1 ? "" : "s"}.`);
+      const count = (data.options || []).length;
+      setMessage(`Picked ${count} saved recipe option${count === 1 ? "" : "s"}.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -286,7 +290,6 @@ function App() {
     const preferencePayload = {
       ...quizForm,
       max_time_minutes: Number(quizForm.max_time_minutes),
-      servings: Number(quizForm.servings),
       cuisine: quizForm.cuisine.trim() || null,
       tags: quizForm.tags.trim() || null,
     };
@@ -367,10 +370,6 @@ function App() {
     return minutes > 0 ? `${minutes} min` : "Unknown";
   }
 
-  function formatServings(servings) {
-    return servings > 0 ? servings : "Unknown";
-  }
-
   function formatDifficulty(difficulty) {
     return difficulty && difficulty !== "unknown" ? difficulty : "Unknown";
   }
@@ -385,10 +384,6 @@ function App() {
         <div>
           <dt>Time</dt>
           <dd>{formatTime(recipe.time_minutes)}</dd>
-        </div>
-        <div>
-          <dt>Serves</dt>
-          <dd>{formatServings(recipe.servings)}</dd>
         </div>
         <div>
           <dt>Level</dt>
@@ -428,18 +423,6 @@ function App() {
                 value={recipeForm.time_minutes}
                 onChange={(event) =>
                   setRecipeForm({ ...recipeForm, time_minutes: event.target.value })
-                }
-                required
-              />
-            </label>
-            <label>
-              Servings
-              <input
-                type="number"
-                min="1"
-                value={recipeForm.servings}
-                onChange={(event) =>
-                  setRecipeForm({ ...recipeForm, servings: event.target.value })
                 }
                 required
               />
@@ -547,8 +530,9 @@ function App() {
                   <span>
                     <strong>{recipe.name}</strong>
                     <small>
-                      {recipe.cuisine}
-                      {recipe.source === "themealdb" ? " · External" : ""}
+                      {recipe.source === "themealdb"
+                        ? `${recipe.cuisine} - External`
+                        : recipe.cuisine}
                     </small>
                   </span>
                   <span>{formatTime(recipe.time_minutes)}</span>
@@ -622,17 +606,7 @@ function App() {
               />
             </label>
             <label>
-              Servings
-              <input
-                type="number"
-                min="1"
-                value={quizForm.servings}
-                onChange={(event) => setQuizForm({ ...quizForm, servings: event.target.value })}
-                required
-              />
-            </label>
-            <label>
-              Difficulty
+              Max difficulty
               <select
                 value={quizForm.difficulty}
                 onChange={(event) => setQuizForm({ ...quizForm, difficulty: event.target.value })}
@@ -755,7 +729,7 @@ function App() {
         ) : (
           <div className="empty-state">
             <h3>No pick yet</h3>
-            <p>Answer the quiz to score your saved recipes and choose one.</p>
+            <p>Set your constraints to rank saved recipes or find a new option.</p>
           </div>
         )}
       </div>
@@ -763,9 +737,9 @@ function App() {
   }
 
   const pageTitles = {
-    manage: ["Dashboard", editingId ? "Edit Recipe" : "Add Recipe"],
-    recipes: ["Recipe List", "Recipes"],
-    decider: ["Meal Decider", "Pick Dinner"],
+    manage: ["Recipe Manager", editingId ? "Edit recipe" : "Add recipe"],
+    recipes: ["Library", "Recipes"],
+    decider: ["Decision", "Pick dinner"],
   };
 
   return (
@@ -773,8 +747,8 @@ function App() {
       <section className="sidebar">
         <div>
           <p className="eyebrow">Meal Decider</p>
-          <h1>Recipe Account</h1>
-          <p className="subtle">Sign in to manage a private collection of meal options.</p>
+          <h1>Dinner, organized.</h1>
+          <p className="subtle">Manage recipes, compare options, and pick what fits tonight.</p>
         </div>
 
         {user ? (
@@ -875,8 +849,8 @@ function App() {
           </>
         ) : (
           <div className="signed-out-panel">
-            <h3>Authentication required</h3>
-            <p>Create an account or sign in to view and manage recipes.</p>
+            <h3>Sign in required</h3>
+            <p>Sign in to manage your recipe library and meal recommendations.</p>
           </div>
         )}
       </section>

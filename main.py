@@ -111,7 +111,6 @@ class Recipe(Base):
     time_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     cuisine: Mapped[str] = mapped_column(String(80), index=True, nullable=False)
     difficulty: Mapped[str] = mapped_column(String(40), default="easy")
-    servings: Mapped[int] = mapped_column(Integer, default=1)
     equipment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -168,7 +167,6 @@ class RecipeCreate(BaseModel):
     time_minutes: int = Field(..., ge=0)
     cuisine: str = Field(..., min_length=1, max_length=80)
     difficulty: str = Field(default="easy", max_length=40)
-    servings: int = Field(default=1, ge=0)
     equipment: Optional[str] = None
     tags: Optional[str] = None
     notes: Optional[str] = None
@@ -179,7 +177,6 @@ class RecipeUpdate(BaseModel):
     time_minutes: Optional[int] = Field(default=None, ge=0)
     cuisine: Optional[str] = Field(default=None, min_length=1, max_length=80)
     difficulty: Optional[str] = Field(default=None, max_length=40)
-    servings: Optional[int] = Field(default=None, ge=0)
     equipment: Optional[str] = None
     tags: Optional[str] = None
     notes: Optional[str] = None
@@ -208,7 +205,6 @@ class RecipePreview(RecipeCreate):
 
 class MealPreference(BaseModel):
     max_time_minutes: int = Field(..., gt=0)
-    servings: int = Field(..., gt=0)
     difficulty: str = Field(default="easy", max_length=40)
     cuisine: Optional[str] = Field(default=None, max_length=80)
     tags: Optional[str] = None
@@ -250,7 +246,7 @@ class ExternalMealRecommendations(BaseModel):
     options: list[ExternalMealRecommendation]
 
 
-SCORE_WEIGHTS = (0.18, 0.12, 0.12, 0.30, 0.28)
+SCORE_WEIGHTS = (0.20, 0.20, 0.30, 0.30)
 
 
 def meal_score(features: list[float]) -> float:
@@ -440,6 +436,17 @@ def overlap_ratio(recipe_terms: set[str], requested_terms: set[str]) -> float:
     return len(recipe_terms & requested_terms) / len(requested_terms)
 
 
+def time_within_limit(recipe: Recipe, max_time_minutes: int) -> bool:
+    return recipe.time_minutes <= 0 or recipe.time_minutes <= max_time_minutes
+
+
+def difficulty_within_limit(recipe: Recipe, max_difficulty: str) -> bool:
+    return (
+        normalize_difficulty(recipe.difficulty) == "unknown"
+        or difficulty_level(recipe.difficulty) <= difficulty_level(max_difficulty)
+    )
+
+
 def estimate_difficulty(meal: dict) -> str:
     ingredients = [
         meal.get(f"strIngredient{index}")
@@ -487,7 +494,6 @@ def build_external_recipe(meal: dict, current_user: User) -> Recipe:
         time_minutes=0,
         cuisine=(meal.get("strArea") or "International").strip()[:80],
         difficulty="unknown",
-        servings=0,
         equipment=None,
         tags=tags[:1000] if tags else "external",
         notes=notes,
@@ -562,7 +568,7 @@ def collect_external_candidates(preferences: MealPreference, limit: int = 24) ->
 
 def infer_preferences_from_saved_recipes(recipes: list[Recipe]) -> MealPreference:
     if not recipes:
-        return MealPreference(max_time_minutes=30, servings=2, difficulty="easy", cuisine=None, tags=None)
+        return MealPreference(max_time_minutes=30, difficulty="easy", cuisine=None, tags=None)
 
     cuisines: dict[str, int] = {}
     keywords: dict[str, int] = {}
@@ -576,13 +582,10 @@ def infer_preferences_from_saved_recipes(recipes: list[Recipe]) -> MealPreferenc
     top_cuisine = max(cuisines, key=cuisines.get) if cuisines else None
     top_keywords = sorted(keywords, key=keywords.get, reverse=True)[:6]
     known_times = [recipe.time_minutes for recipe in recipes if recipe.time_minutes > 0]
-    known_servings = [recipe.servings for recipe in recipes if recipe.servings > 0]
     average_time = round(sum(known_times) / len(known_times)) if known_times else 30
-    average_servings = max(1, round(sum(known_servings) / len(known_servings))) if known_servings else 2
 
     return MealPreference(
         max_time_minutes=average_time,
-        servings=average_servings,
         difficulty="medium",
         cuisine=top_cuisine,
         tags=", ".join(top_keywords) if top_keywords else None,
@@ -590,7 +593,6 @@ def infer_preferences_from_saved_recipes(recipes: list[Recipe]) -> MealPreferenc
 
 
 def score_recipe_for_preferences(recipe: Recipe, preferences: MealPreference) -> float:
-    preferred_difficulty = difficulty_level(preferences.difficulty)
     requested_cuisine = (preferences.cuisine or "").strip().lower()
     requested_keywords = keyword_terms(preferences.cuisine, preferences.tags)
     inferred_cuisines = infer_cuisine_preferences(requested_keywords)
@@ -598,17 +600,8 @@ def score_recipe_for_preferences(recipe: Recipe, preferences: MealPreference) ->
     recipe_terms = recipe_keyword_terms(recipe)
     recipe_cuisines = cuisine_terms(recipe.cuisine)
 
-    time_fit = (
-        max(0.0, 1.0 - abs(recipe.time_minutes - preferences.max_time_minutes) / preferences.max_time_minutes)
-        if recipe.time_minutes > 0
-        else 0.5
-    )
-    serving_fit = (
-        max(0.0, 1.0 - abs(recipe.servings - preferences.servings) / preferences.servings)
-        if recipe.servings > 0
-        else 0.5
-    )
-    difficulty_fit = 1.0 - (abs(difficulty_level(recipe.difficulty) - preferred_difficulty) / 2.0)
+    time_fit = 1.0 if time_within_limit(recipe, preferences.max_time_minutes) else 0.0
+    difficulty_fit = 1.0 if difficulty_within_limit(recipe, preferences.difficulty) else 0.0
     keyword_fit = overlap_ratio(recipe_terms, requested_keywords)
     if requested_cuisine:
         cuisine_fit = 1.0 if requested_cuisine in recipe_cuisines else 0.0
@@ -617,7 +610,7 @@ def score_recipe_for_preferences(recipe: Recipe, preferences: MealPreference) ->
     else:
         cuisine_fit = 0.5
 
-    return meal_score([time_fit, serving_fit, difficulty_fit, cuisine_fit, keyword_fit])
+    return meal_score([time_fit, difficulty_fit, cuisine_fit, keyword_fit])
 
 
 def external_recommendation_reasons(recipe: Recipe, preferences: MealPreference) -> list[str]:
@@ -635,11 +628,9 @@ def external_recommendation_reasons(recipe: Recipe, preferences: MealPreference)
     if requested_keywords and recipe_terms & requested_keywords:
         reasons.append(f"matches keywords: {', '.join(sorted(recipe_terms & requested_keywords))}")
     if 0 < recipe.time_minutes <= preferences.max_time_minutes:
-        reasons.append(f"{recipe.time_minutes} minutes fits your time target")
-    if recipe.servings > 0 and recipe.servings == preferences.servings:
-        reasons.append(f"serves {recipe.servings}")
-    if normalize_difficulty(recipe.difficulty) != "unknown" and normalize_difficulty(recipe.difficulty) == normalize_difficulty(preferences.difficulty):
-        reasons.append(f"matches {normalize_difficulty(preferences.difficulty)} difficulty")
+        reasons.append(f"{recipe.time_minutes} minutes is within your max time")
+    if normalize_difficulty(recipe.difficulty) != "unknown" and difficulty_within_limit(recipe, preferences.difficulty):
+        reasons.append(f"{normalize_difficulty(recipe.difficulty)} is within your max difficulty")
 
     if not reasons:
         reasons.append("is the closest related external recipe TheMealDB returned")
@@ -777,7 +768,6 @@ def recommend_recipe(
             detail="Add at least one recipe before asking for a recommendation",
         )
 
-    preferred_difficulty = difficulty_level(preferences.difficulty)
     requested_cuisine = (preferences.cuisine or "").strip().lower()
     requested_tags = split_terms(preferences.tags)
     requested_keywords = keyword_terms(preferences.cuisine, preferences.tags)
@@ -787,23 +777,19 @@ def recommend_recipe(
     feature_rows = []
     affinity_rows = []
     reason_rows = []
+    matched_recipes = []
     for recipe in recipes:
-        recipe_difficulty = difficulty_level(recipe.difficulty)
+        if not time_within_limit(recipe, preferences.max_time_minutes):
+            continue
+        if not difficulty_within_limit(recipe, preferences.difficulty):
+            continue
+
         recipe_tags = split_terms(recipe.tags)
         recipe_terms = recipe_keyword_terms(recipe)
         recipe_cuisines = cuisine_terms(recipe.cuisine)
 
-        time_fit = (
-            max(0.0, 1.0 - abs(recipe.time_minutes - preferences.max_time_minutes) / preferences.max_time_minutes)
-            if recipe.time_minutes > 0
-            else 0.5
-        )
-        serving_fit = (
-            max(0.0, 1.0 - abs(recipe.servings - preferences.servings) / preferences.servings)
-            if recipe.servings > 0
-            else 0.5
-        )
-        difficulty_fit = 1.0 - (abs(recipe_difficulty - preferred_difficulty) / 2.0)
+        time_fit = 1.0
+        difficulty_fit = 1.0
         keyword_fit = overlap_ratio(recipe_terms, requested_keywords)
 
         if requested_cuisine:
@@ -821,7 +807,8 @@ def recommend_recipe(
 
         has_preference_input = bool(requested_cuisine or requested_keywords or cuisine_preferences)
         affinity_rows.append(not has_preference_input or cuisine_fit > 0.0 or tag_fit > 0.0)
-        feature_rows.append([time_fit, serving_fit, difficulty_fit, cuisine_fit, tag_fit])
+        feature_rows.append([time_fit, difficulty_fit, cuisine_fit, tag_fit])
+        matched_recipes.append(recipe)
 
         reasons = []
         if requested_cuisine and cuisine_fit == 1.0:
@@ -832,15 +819,19 @@ def recommend_recipe(
         if requested_keywords and keyword_fit > 0:
             matched_keywords = sorted(recipe_terms & requested_keywords)
             reasons.append(f"matches keywords: {', '.join(matched_keywords)}")
-        if recipe.time_minutes > 0 and time_fit >= 0.75:
-            reasons.append(f"{recipe.time_minutes} minutes fits the {preferences.max_time_minutes}-minute target")
-        if recipe.servings > 0 and serving_fit >= 0.75:
-            reasons.append(f"serves {recipe.servings}, close to your target of {preferences.servings}")
-        if normalize_difficulty(recipe.difficulty) != "unknown" and difficulty_fit == 1.0:
-            reasons.append(f"matches {normalize_difficulty(preferences.difficulty)} difficulty")
+        if recipe.time_minutes > 0:
+            reasons.append(f"{recipe.time_minutes} minutes is within your max time")
+        if normalize_difficulty(recipe.difficulty) != "unknown":
+            reasons.append(f"{normalize_difficulty(recipe.difficulty)} is within your max difficulty")
         if not reasons:
-            reasons.append("is the closest match in your saved recipes")
+            reasons.append("fits your max time and difficulty")
         reason_rows.append(reasons)
+
+    if not feature_rows:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No saved recipes fit your max time and difficulty",
+        )
 
     scores = [meal_score(row) for row in feature_rows]
     if any(affinity_rows):
@@ -848,7 +839,7 @@ def recommend_recipe(
     ranked_indexes = sorted(range(len(scores)), key=lambda index: scores[index], reverse=True)
 
     options = [
-        MealRecommendation(recipe=recipes[index], reasons=reason_rows[index])
+        MealRecommendation(recipe=matched_recipes[index], reasons=reason_rows[index])
         for index in ranked_indexes[: preferences.count]
     ]
     return MealRecommendations(options=options)
