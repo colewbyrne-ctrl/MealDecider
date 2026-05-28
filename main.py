@@ -293,6 +293,9 @@ def ensure_schema():
                 connection.execute(text("ALTER TABLE recipes ADD COLUMN source_url TEXT"))
             if "external_id" not in recipe_columns:
                 connection.execute(text("ALTER TABLE recipes ADD COLUMN external_id VARCHAR(80)"))
+            if "servings" in recipe_columns and engine.dialect.name == "postgresql":
+                connection.execute(text("ALTER TABLE recipes ALTER COLUMN servings SET DEFAULT 0"))
+                connection.execute(text("ALTER TABLE recipes ALTER COLUMN servings DROP NOT NULL"))
 
 
 ensure_schema()

@@ -100,6 +100,27 @@ def test_created_recipe_is_returned_for_user_profile(app_module):
     assert [recipe["name"] for recipe in list_response.json()] == ["Profile Pasta"]
 
 
+def test_create_recipe_handles_legacy_servings_column(app_module):
+    client = TestClient(app_module.app)
+
+    with app_module.engine.begin() as connection:
+        connection.execute(app_module.text("ALTER TABLE recipes ADD COLUMN servings INTEGER NOT NULL DEFAULT 1"))
+
+    register_response = client.post(
+        "/auth/register",
+        json={"name": "Cole", "email": "legacy-servings@example.com", "password": "correct horse"},
+    )
+    token = register_response.json()["token"]
+
+    response = client.post(
+        "/recipes",
+        json={"name": "Legacy Pasta", "time_minutes": 20, "cuisine": "Italian", "difficulty": "easy"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 201
+
+
 def test_recommendations_return_requested_unique_recipe_count(app_module):
     client = TestClient(app_module.app)
 
