@@ -1,6 +1,6 @@
 :root {
   color: #172033;
-  background: #f6f7f9;
+  background: #f7f2ea;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -72,12 +72,16 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  border-right: 1px solid #dbe0e7;
-  background: #ffffff;
+  border-right: 1px solid #123229;
+  background: linear-gradient(180deg, #173f35 0%, #102d28 100%);
+  color: #fff8ec;
   padding: 36px 28px;
 }
 
 .workspace {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0)),
+    #f7f2ea;
   padding: 36px;
 }
 
@@ -92,7 +96,7 @@ h3 {
 .eyebrow,
 .label {
   margin-bottom: 8px;
-  color: #637083;
+  color: #a35f2b;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0;
@@ -109,6 +113,17 @@ small {
   line-height: 1.55;
 }
 
+.sidebar .eyebrow,
+.sidebar .label {
+  color: #f0b76a;
+}
+
+.sidebar .subtle,
+.sidebar .status-line,
+.sidebar small {
+  color: #dbe8de;
+}
+
 .auth-form,
 .account-box,
 .recipe-form,
@@ -119,7 +134,7 @@ small {
 .recipe-row {
   border: 1px solid #dbe0e7;
   border-radius: 8px;
-  background: #ffffff;
+  background: #fffdf8;
 }
 
 .auth-form,
@@ -127,7 +142,16 @@ small {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  color: #172033;
   padding: 18px;
+}
+
+.account-box .label {
+  color: #a35f2b;
+}
+
+.account-box small {
+  color: #5e6a7d;
 }
 
 .app-nav {
@@ -139,7 +163,7 @@ small {
   min-height: 42px;
   border-radius: 6px;
   background: transparent;
-  color: #445066;
+  color: #edf7ef;
   font-weight: 800;
   padding: 0 14px;
   text-align: left;
@@ -147,8 +171,8 @@ small {
 
 .app-nav button:hover,
 .app-nav button.active {
-  background: #edf3f1;
-  color: #153f34;
+  background: #fff8ec;
+  color: #173f35;
 }
 
 .segmented {
@@ -156,7 +180,7 @@ small {
   grid-template-columns: 1fr 1fr;
   gap: 4px;
   border-radius: 8px;
-  background: #eef1f5;
+  background: #eadfd0;
   padding: 4px;
 }
 
@@ -169,7 +193,7 @@ small {
 }
 
 .segmented button.active {
-  background: #ffffff;
+  background: #fffdf8;
   color: #172033;
   box-shadow: 0 1px 3px rgba(23, 32, 51, 0.12);
 }
@@ -189,7 +213,7 @@ textarea {
   width: 100%;
   border: 1px solid #cbd3df;
   border-radius: 6px;
-  background: #ffffff;
+  background: #fffdf8;
   color: #172033;
   outline: none;
 }
@@ -208,8 +232,8 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: #26735f;
-  box-shadow: 0 0 0 3px rgba(38, 115, 95, 0.14);
+  border-color: #2f7a61;
+  box-shadow: 0 0 0 3px rgba(47, 122, 97, 0.16);
 }
 
 .primary,
@@ -225,32 +249,32 @@ textarea:focus {
 }
 
 .primary {
-  background: #26735f;
+  background: #2f7a61;
   color: #ffffff;
 }
 
 .primary:hover {
-  background: #1f604f;
+  background: #245f4d;
 }
 
 .secondary {
-  border: 1px solid #cbd3df;
-  background: #ffffff;
+  border: 1px solid #d5c7b4;
+  background: #fffdf8;
   color: #263244;
 }
 
 .secondary:hover {
-  border-color: #aeb8c7;
-  background: #f8fafc;
+  border-color: #bf9e73;
+  background: #fff7e9;
 }
 
 .danger {
-  background: #b4232a;
+  background: #b64d3d;
   color: #ffffff;
 }
 
 .danger:hover {
-  background: #922027;
+  background: #963d31;
 }
 
 .button-link {
@@ -258,7 +282,7 @@ textarea:focus {
 }
 
 .status-line {
-  border-top: 1px solid #dbe0e7;
+  border-top: 1px solid rgba(255, 248, 236, 0.22);
   padding-top: 12px;
   font-size: 14px;
 }
@@ -267,8 +291,9 @@ textarea:focus {
   display: inline-flex;
   min-height: 34px;
   align-items: center;
-  border: 1px solid #cbd3df;
+  border: 1px solid #d5c7b4;
   border-radius: 999px;
+  background: #fffdf8;
   padding: 0 14px;
   color: #445066;
   font-size: 13px;
@@ -339,13 +364,13 @@ textarea:focus {
 }
 
 .recipe-row:hover {
-  border-color: #b9c4d3;
-  background: #fbfcfe;
+  border-color: #d69a51;
+  background: #fff8ec;
 }
 
 .recipe-row.selected {
-  border-color: #26735f;
-  box-shadow: 0 0 0 3px rgba(38, 115, 95, 0.12);
+  border-color: #2f7a61;
+  box-shadow: 0 0 0 3px rgba(47, 122, 97, 0.14);
 }
 
 .recipe-row span {
@@ -359,12 +384,13 @@ textarea:focus {
   padding: 18px;
 }
 
-.recipe-card h3 {
-  margin-bottom: 4px;
-}
-
 .recipe-card.featured {
   align-content: start;
+  border-top: 4px solid #d69a51;
+}
+
+.recipe-card h3 {
+  margin-bottom: 4px;
 }
 
 .recipe-card dl {
@@ -394,7 +420,7 @@ textarea:focus {
   align-items: center;
   border-radius: 999px;
   background: #e2f1ec;
-  color: #1f604f;
+  color: #245f4d;
   padding: 0 10px;
   font-size: 12px;
   font-weight: 800;
@@ -402,7 +428,7 @@ textarea:focus {
 
 .source-link {
   width: fit-content;
-  color: #1f604f;
+  color: #245f4d;
   font-weight: 800;
   text-decoration: none;
 }
@@ -417,7 +443,7 @@ textarea:focus {
 }
 
 .score-line {
-  color: #1f604f;
+  color: #a35f2b;
   font-weight: 800;
 }
 
@@ -453,7 +479,7 @@ textarea:focus {
 
   .sidebar {
     border-right: 0;
-    border-bottom: 1px solid #dbe0e7;
+    border-bottom: 1px solid #123229;
   }
 
   .app-nav {

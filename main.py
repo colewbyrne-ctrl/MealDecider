@@ -834,13 +834,29 @@ def recommend_recipe(
         )
 
     scores = [meal_score(row) for row in feature_rows]
-    if any(affinity_rows):
-        scores = [score if has_affinity else -1.0 for score, has_affinity in zip(scores, affinity_rows)]
-    ranked_indexes = sorted(range(len(scores)), key=lambda index: scores[index], reverse=True)
+    candidate_indexes = [
+        index
+        for index, has_affinity in enumerate(affinity_rows)
+        if has_affinity or not any(affinity_rows)
+    ]
+    selected_indexes = []
+    randomizer = secrets.SystemRandom()
+    while candidate_indexes and len(selected_indexes) < preferences.count:
+        weights = [max(scores[index], 0.0) + 0.05 for index in candidate_indexes]
+        total_weight = sum(weights)
+        pick = randomizer.uniform(0, total_weight)
+        running_weight = 0.0
+        selected_position = 0
+        for position, weight in enumerate(weights):
+            running_weight += weight
+            if pick <= running_weight:
+                selected_position = position
+                break
+        selected_indexes.append(candidate_indexes.pop(selected_position))
 
     options = [
         MealRecommendation(recipe=matched_recipes[index], reasons=reason_rows[index])
-        for index in ranked_indexes[: preferences.count]
+        for index in selected_indexes
     ]
     return MealRecommendations(options=options)
 

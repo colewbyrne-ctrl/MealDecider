@@ -74,3 +74,33 @@ def test_recommendations_use_time_and_difficulty_as_maximums(app_module):
     assert response.status_code == 200
     names = [option["recipe"]["name"] for option in response.json()["options"]]
     assert names == ["Quick Pasta"]
+
+
+def test_recommendations_return_requested_unique_recipe_count(app_module):
+    client = TestClient(app_module.app)
+
+    register_response = client.post(
+        "/auth/register",
+        json={"name": "Cole", "email": "unique@example.com", "password": "correct horse"},
+    )
+    token = register_response.json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    for name in ["Tacos", "Pasta", "Soup"]:
+        response = client.post(
+            "/recipes",
+            json={"name": name, "time_minutes": 20, "cuisine": "Any", "difficulty": "easy"},
+            headers=headers,
+        )
+        assert response.status_code == 201
+
+    response = client.post(
+        "/recipes/recommend",
+        json={"max_time_minutes": 30, "difficulty": "easy", "count": 3},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    names = [option["recipe"]["name"] for option in response.json()["options"]]
+    assert len(names) == 3
+    assert len(set(names)) == 3
