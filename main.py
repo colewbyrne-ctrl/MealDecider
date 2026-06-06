@@ -3,7 +3,7 @@ import json
 import os
 import re
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 from urllib.parse import urlencode
 from urllib.error import HTTPError, URLError
@@ -137,6 +137,16 @@ class AuthToken(Base):
     expires_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
+class MealPlanEntry(Base):
+    __tablename__ = "meal_plan_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    plan_date: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    recipe_id: Mapped[Optional[int]] = mapped_column(ForeignKey("recipes.id"), nullable=True, index=True)
+    custom_message: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+
+
 class UserCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     email: str = Field(..., min_length=3, max_length=255)
@@ -250,6 +260,28 @@ class ExternalMealRecommendations(BaseModel):
     options: list[ExternalMealRecommendation]
 
 
+class MealPlanEntryCreate(BaseModel):
+    plan_date: date
+    recipe_id: Optional[int] = None
+    custom_message: Optional[str] = Field(default=None, max_length=200)
+
+
+class MealPlanEntryRead(BaseModel):
+    id: int
+    plan_date: date
+    recipe: Optional[RecipeRead] = None
+    custom_message: Optional[str] = None
+
+
+class MealPlanGenerateRequest(BaseModel):
+    start_date: date
+    days: int = Field(default=14, ge=1, le=14)
+
+
+class MealPlanRead(BaseModel):
+    entries: list[MealPlanEntryRead]
+
+
 SCORE_WEIGHTS = (0.20, 0.20, 0.30, 0.30)
 
 
@@ -304,6 +336,7 @@ def ensure_schema():
             if "servings" in recipe_columns and engine.dialect.name == "postgresql":
                 connection.execute(text("ALTER TABLE recipes ALTER COLUMN servings SET DEFAULT 0"))
                 connection.execute(text("ALTER TABLE recipes ALTER COLUMN servings DROP NOT NULL"))
+    MealPlanEntry.__table__.create(bind=engine, checkfirst=True)
 
 
 ensure_schema()
@@ -814,6 +847,26 @@ def get_current_user(
     return user
 
 
+def meal_plan_entry_read(entry: MealPlanEntry, db: Session) -> MealPlanEntryRead:
+    recipe = db.get(Recipe, entry.recipe_id) if entry.recipe_id else None
+    return MealPlanEntryRead(
+        id=entry.id,
+        plan_date=date.fromisoformat(entry.plan_date),
+        recipe=recipe,
+        custom_message=entry.custom_message,
+    )
+
+
+def choose_schedule_recipes(recipes: list[Recipe], count: int) -> list[Recipe]:
+    randomizer = secrets.SystemRandom()
+    choices = []
+    while len(choices) < count:
+        batch = recipes.copy()
+        randomizer.shuffle(batch)
+        choices.extend(batch[: count - len(choices)])
+    return choices
+
+
 @app.get("/")
 def health_check():
     return {"status": "ok", "message": "Meal Decider API is running"}
@@ -864,6 +917,139 @@ def logout(
         db.delete(auth_token)
         db.commit()
     return None
+
+
+@app.get("/meal-plan", response_model=MealPlanRead)
+def get_meal_plan(
+    start_date: date,
+    days: int = 14,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    days = max(1, min(days, 14))
+    end_date = start_date + timedelta(days=days - 1)
+    entries = (
+        db.query(MealPlanEntry)
+        .filter(
+            MealPlanEntry.owner_id == current_user.id,
+            MealPlanEntry.plan_date >= start_date.isoformat(),
+            MealPlanEntry.plan_date <= end_date.isoformat(),
+        )
+        .order_by(MealPlanEntry.plan_date, MealPlanEntry.id)
+        .all()
+    )
+    return MealPlanRead(entries=[meal_plan_entry_read(entry, db) for entry in entries])
+
+
+@app.post("/meal-plan", response_model=MealPlanEntryRead, status_code=status.HTTP_201_CREATED)
+def add_meal_plan_entry(
+    entry_data: MealPlanEntryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    message = (entry_data.custom_message or "").strip() or None
+    if bool(entry_data.recipe_id) == bool(message):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Choose one saved recipe or enter one custom message",
+        )
+
+    recipe = None
+    if entry_data.recipe_id:
+        recipe = db.get(Recipe, entry_data.recipe_id)
+        if recipe is None or recipe.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found")
+
+    entry = MealPlanEntry(
+        owner_id=current_user.id,
+        plan_date=entry_data.plan_date.isoformat(),
+        recipe_id=recipe.id if recipe else None,
+        custom_message=message,
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return meal_plan_entry_read(entry, db)
+
+
+@app.delete("/meal-plan/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_meal_plan_entry(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    entry = db.get(MealPlanEntry, entry_id)
+    if entry is None or entry.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal plan entry not found")
+    db.delete(entry)
+    db.commit()
+    return None
+
+
+@app.post("/meal-plan/generate-day", response_model=MealPlanEntryRead, status_code=status.HTTP_201_CREATED)
+def generate_meal_for_day(
+    entry_data: MealPlanEntryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    recipes = db.query(Recipe).filter(Recipe.owner_id == current_user.id).all()
+    if not recipes:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Add a recipe before generating meals")
+    recipe = secrets.SystemRandom().choice(recipes)
+    entry = MealPlanEntry(
+        owner_id=current_user.id,
+        plan_date=entry_data.plan_date.isoformat(),
+        recipe_id=recipe.id,
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return meal_plan_entry_read(entry, db)
+
+
+@app.post("/meal-plan/generate", response_model=MealPlanRead)
+def generate_meal_plan(
+    request: MealPlanGenerateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    recipes = db.query(Recipe).filter(Recipe.owner_id == current_user.id).all()
+    if not recipes:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Add a recipe before generating meals")
+
+    dates = [request.start_date + timedelta(days=offset) for offset in range(request.days)]
+    existing_dates = {
+        entry.plan_date
+        for entry in db.query(MealPlanEntry)
+        .filter(
+            MealPlanEntry.owner_id == current_user.id,
+            MealPlanEntry.plan_date >= dates[0].isoformat(),
+            MealPlanEntry.plan_date <= dates[-1].isoformat(),
+        )
+        .all()
+    }
+    empty_dates = [plan_date for plan_date in dates if plan_date.isoformat() not in existing_dates]
+    for plan_date, recipe in zip(empty_dates, choose_schedule_recipes(recipes, len(empty_dates))):
+        db.add(
+            MealPlanEntry(
+                owner_id=current_user.id,
+                plan_date=plan_date.isoformat(),
+                recipe_id=recipe.id,
+            )
+        )
+    db.commit()
+
+    entries = (
+        db.query(MealPlanEntry)
+        .filter(
+            MealPlanEntry.owner_id == current_user.id,
+            MealPlanEntry.plan_date >= dates[0].isoformat(),
+            MealPlanEntry.plan_date <= dates[-1].isoformat(),
+        )
+        .order_by(MealPlanEntry.plan_date, MealPlanEntry.id)
+        .all()
+    )
+    return MealPlanRead(entries=[meal_plan_entry_read(entry, db) for entry in entries])
 
 
 @app.get("/recipes", response_model=list[RecipeRead])
@@ -1149,6 +1335,10 @@ def delete_recipe(
             detail="Recipe not found",
         )
 
+    db.query(MealPlanEntry).filter(
+        MealPlanEntry.owner_id == current_user.id,
+        MealPlanEntry.recipe_id == recipe.id,
+    ).delete()
     db.delete(recipe)
     db.commit()
     return None

@@ -9,6 +9,7 @@ Meal Decider is a full-stack recipe manager for keeping a private list of meal o
 - Recipe create, read, update, delete, search, and detail views with ingredients and instructions
 - Camera/photo recipe import that drafts meal attributes from an image
 - Meal quiz that ranks saved recipes by max time, max difficulty, cuisine, and tags
+- Persisted two-week meal calendar with recipes, custom messages, and schedule generation
 - External recipe suggestions from TheMealDB, with optional save into your account
 - Responsive Vite React interface for desktop, landscape, and portrait layouts
 - FastAPI backend with SQLAlchemy and environment-driven database configuration

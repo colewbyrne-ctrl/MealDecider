@@ -522,6 +522,81 @@ textarea:focus {
   padding: 28px;
 }
 
+.calendar-page {
+  display: grid;
+  gap: 18px;
+}
+
+.calendar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.calendar-toolbar h3,
+.calendar-toolbar p {
+  margin-bottom: 4px;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
+}
+
+.calendar-day {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  border: 1px solid #dbe0e7;
+  border-top: 4px solid #d69a51;
+  border-radius: 8px;
+  background: #fffdf8;
+  padding: 16px;
+}
+
+.calendar-day header h3 {
+  margin-bottom: 3px;
+}
+
+.day-entries,
+.day-controls {
+  display: grid;
+  gap: 8px;
+}
+
+.day-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 6px;
+  background: #eef6f2;
+  padding: 9px 10px;
+  color: #173f35;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.remove-entry {
+  background: transparent;
+  color: #963d31;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.day-empty {
+  margin-bottom: 0;
+  color: #7b8494;
+  font-size: 13px;
+}
+
+.day-controls .primary,
+.day-controls .secondary {
+  min-height: 38px;
+}
+
 @media (max-width: 920px), (orientation: portrait) {
   .app-shell,
   .content-grid,
@@ -544,7 +619,7 @@ textarea:focus {
   }
 
   .app-nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .app-nav button {
@@ -588,6 +663,11 @@ textarea:focus {
 
   .workspace-header {
     align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .calendar-toolbar {
+    align-items: stretch;
     flex-direction: column;
   }
 

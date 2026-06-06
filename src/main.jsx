@@ -22,6 +22,24 @@ const blankQuiz = {
   saved_count: 1,
 };
 
+function toLocalDateString(date) {
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 10);
+}
+
+function buildCalendarDays() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  return Array.from({ length: 14 }, (_, index) => {
+    const day = new Date(start);
+    day.setDate(start.getDate() + index);
+    return {
+      date: toLocalDateString(day),
+      label: day.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }),
+    };
+  });
+}
+
 function readStoredUser() {
   try {
     const saved = localStorage.getItem("meal_user");
@@ -49,6 +67,9 @@ function App() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [photoPreview, setPhotoPreview] = useState("");
+  const [mealPlanEntries, setMealPlanEntries] = useState([]);
+  const [calendarInputs, setCalendarInputs] = useState({});
+  const calendarDays = useMemo(buildCalendarDays, []);
 
   const authHeaders = useMemo(
     () => ({
@@ -88,6 +109,7 @@ function App() {
   useEffect(() => {
     if (token) {
       loadRecipes();
+      loadMealPlan();
     }
   }, [token]);
 
@@ -152,6 +174,17 @@ function App() {
     try {
       const data = await request("/recipes", { headers: authHeaders });
       setRecipes(data);
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function loadMealPlan() {
+    try {
+      const data = await request(`/meal-plan?start_date=${calendarDays[0].date}&days=14`, {
+        headers: authHeaders,
+      });
+      setMealPlanEntries(data.entries || []);
     } catch (error) {
       setMessage(error.message);
     }
@@ -446,6 +479,100 @@ function App() {
     }
   }
 
+  function updateCalendarInput(planDate, field, value) {
+    setCalendarInputs((current) => ({
+      ...current,
+      [planDate]: { recipeId: "", message: "", ...current[planDate], [field]: value },
+    }));
+  }
+
+  async function addRecipeToDay(planDate) {
+    const recipeId = Number(calendarInputs[planDate]?.recipeId);
+    if (!recipeId) {
+      setMessage("Choose a recipe to add.");
+      return;
+    }
+    await addMealPlanEntry({ plan_date: planDate, recipe_id: recipeId });
+  }
+
+  async function addMessageToDay(planDate) {
+    const customMessage = calendarInputs[planDate]?.message?.trim();
+    if (!customMessage) {
+      setMessage("Enter a custom message to add.");
+      return;
+    }
+    await addMealPlanEntry({ plan_date: planDate, custom_message: customMessage });
+  }
+
+  async function addMealPlanEntry(payload) {
+    setLoading(true);
+    setMessage("");
+    try {
+      const entry = await request("/meal-plan", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify(payload),
+      });
+      setMealPlanEntries((entries) => [...entries, entry]);
+      setCalendarInputs((current) => ({ ...current, [payload.plan_date]: { recipeId: "", message: "" } }));
+      setMessage("Meal added to the calendar.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function removeMealPlanEntry(entryId) {
+    setLoading(true);
+    setMessage("");
+    try {
+      await request(`/meal-plan/${entryId}`, { method: "DELETE", headers: authHeaders });
+      setMealPlanEntries((entries) => entries.filter((entry) => entry.id !== entryId));
+      setMessage("Calendar entry removed.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function generateMealForDay(planDate) {
+    setLoading(true);
+    setMessage("");
+    try {
+      const entry = await request("/meal-plan/generate-day", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ plan_date: planDate }),
+      });
+      setMealPlanEntries((entries) => [...entries, entry]);
+      setMessage(`${entry.recipe.name} was added to the calendar.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function generateFullMealPlan() {
+    setLoading(true);
+    setMessage("");
+    try {
+      const data = await request("/meal-plan/generate", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ start_date: calendarDays[0].date, days: 14 }),
+      });
+      setMealPlanEntries(data.entries || []);
+      setMessage("Empty days in the two-week schedule have been filled.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function logout() {
     try {
       if (token) {
@@ -465,6 +592,7 @@ function App() {
     setSelectedRecipeId(null);
     setExternalRecommendations([]);
     setRecommendations([]);
+    setMealPlanEntries([]);
     setPage("manage");
     setMessage("Signed out.");
   }
@@ -736,6 +864,103 @@ function App() {
     );
   }
 
+  function renderCalendarPage() {
+    return (
+      <div className="calendar-page">
+        <div className="calendar-toolbar">
+          <div>
+            <h3>Next two weeks</h3>
+            <p>Plan one or more meals per day, or add reminders such as Leftovers.</p>
+          </div>
+          <button
+            className="primary"
+            onClick={generateFullMealPlan}
+            disabled={loading || recipes.length === 0}
+          >
+            {loading ? "Generating..." : "Generate full schedule"}
+          </button>
+        </div>
+
+        <div className="calendar-grid">
+          {calendarDays.map((day) => {
+            const entries = mealPlanEntries.filter((entry) => entry.plan_date === day.date);
+            const inputs = calendarInputs[day.date] || { recipeId: "", message: "" };
+            return (
+              <article className="calendar-day" key={day.date}>
+                <header>
+                  <h3>{day.label}</h3>
+                  <small>{day.date}</small>
+                </header>
+
+                <div className="day-entries">
+                  {entries.length > 0 ? (
+                    entries.map((entry) => (
+                      <div className="day-entry" key={entry.id}>
+                        <span>{entry.recipe?.name || entry.custom_message}</span>
+                        <button
+                          className="remove-entry"
+                          onClick={() => removeMealPlanEntry(entry.id)}
+                          disabled={loading}
+                          aria-label={`Remove ${entry.recipe?.name || entry.custom_message}`}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="day-empty">Nothing planned yet.</p>
+                  )}
+                </div>
+
+                <div className="day-controls">
+                  <select
+                    value={inputs.recipeId}
+                    onChange={(event) => updateCalendarInput(day.date, "recipeId", event.target.value)}
+                    aria-label={`Recipe for ${day.label}`}
+                  >
+                    <option value="">Choose saved recipe</option>
+                    {recipes.map((recipe) => (
+                      <option value={recipe.id} key={recipe.id}>
+                        {recipe.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="secondary"
+                    onClick={() => addRecipeToDay(day.date)}
+                    disabled={loading || recipes.length === 0}
+                  >
+                    Add recipe
+                  </button>
+                  <input
+                    value={inputs.message}
+                    onChange={(event) => updateCalendarInput(day.date, "message", event.target.value)}
+                    placeholder="Custom message, e.g. Leftovers"
+                    aria-label={`Custom message for ${day.label}`}
+                  />
+                  <button
+                    className="secondary"
+                    onClick={() => addMessageToDay(day.date)}
+                    disabled={loading}
+                  >
+                    Add message
+                  </button>
+                  <button
+                    className="primary"
+                    onClick={() => generateMealForDay(day.date)}
+                    disabled={loading || recipes.length === 0}
+                  >
+                    Generate recipe
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   function renderDeciderPage() {
     return (
       <div className="content-grid">
@@ -889,6 +1114,7 @@ function App() {
   const pageTitles = {
     manage: ["Recipe Manager", editingId ? "Edit recipe" : "Add recipe"],
     recipes: ["Library", "Recipes"],
+    calendar: ["Meal Plan", "Two-week calendar"],
     decider: ["Decision", "Pick dinner"],
   };
 
@@ -909,6 +1135,9 @@ function App() {
               </button>
               <button className={page === "recipes" ? "active" : ""} onClick={() => setPage("recipes")}>
                 Recipes
+              </button>
+              <button className={page === "calendar" ? "active" : ""} onClick={() => setPage("calendar")}>
+                Calendar
               </button>
               <button className={page === "decider" ? "active" : ""} onClick={() => setPage("decider")}>
                 Decide
@@ -995,6 +1224,7 @@ function App() {
           <>
             {page === "manage" && renderManagePage()}
             {page === "recipes" && renderRecipesPage()}
+            {page === "calendar" && renderCalendarPage()}
             {page === "decider" && renderDeciderPage()}
           </>
         ) : (

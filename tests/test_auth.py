@@ -201,6 +201,79 @@ def test_recommendations_return_requested_unique_recipe_count(app_module):
     assert len(set(names)) == 3
 
 
+def test_meal_plan_supports_multiple_recipes_and_custom_messages_per_day(app_module):
+    client = TestClient(app_module.app)
+    register_response = client.post(
+        "/auth/register",
+        json={"name": "Cole", "email": "calendar@example.com", "password": "correct horse"},
+    )
+    headers = {"Authorization": f"Bearer {register_response.json()['token']}"}
+    recipe_response = client.post(
+        "/recipes",
+        json={"name": "Tacos", "time_minutes": 20, "cuisine": "Mexican", "difficulty": "easy"},
+        headers=headers,
+    )
+    recipe_id = recipe_response.json()["id"]
+
+    recipe_entry = client.post(
+        "/meal-plan",
+        json={"plan_date": "2026-06-08", "recipe_id": recipe_id},
+        headers=headers,
+    )
+    message_entry = client.post(
+        "/meal-plan",
+        json={"plan_date": "2026-06-08", "custom_message": "Leftovers"},
+        headers=headers,
+    )
+    plan = client.get("/meal-plan?start_date=2026-06-08&days=14", headers=headers)
+
+    assert recipe_entry.status_code == 201
+    assert message_entry.status_code == 201
+    assert plan.status_code == 200
+    entries = plan.json()["entries"]
+    assert entries[0]["recipe"]["name"] == "Tacos"
+    assert entries[1]["custom_message"] == "Leftovers"
+
+
+def test_full_meal_plan_generation_only_fills_empty_days(app_module):
+    client = TestClient(app_module.app)
+    register_response = client.post(
+        "/auth/register",
+        json={"name": "Cole", "email": "generated-calendar@example.com", "password": "correct horse"},
+    )
+    headers = {"Authorization": f"Bearer {register_response.json()['token']}"}
+    for name in ["Tacos", "Pasta"]:
+        client.post(
+            "/recipes",
+            json={"name": name, "time_minutes": 20, "cuisine": "Any", "difficulty": "easy"},
+            headers=headers,
+        )
+    client.post(
+        "/meal-plan",
+        json={"plan_date": "2026-06-08", "custom_message": "Leftovers"},
+        headers=headers,
+    )
+
+    response = client.post(
+        "/meal-plan/generate",
+        json={"start_date": "2026-06-08", "days": 14},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+    assert len(entries) == 14
+    first_day_entries = [entry for entry in entries if entry["plan_date"] == "2026-06-08"]
+    assert first_day_entries == [
+        {
+            "id": first_day_entries[0]["id"],
+            "plan_date": "2026-06-08",
+            "recipe": None,
+            "custom_message": "Leftovers",
+        }
+    ]
+
+
 def test_photo_analysis_reports_missing_configuration(app_module, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     client = TestClient(app_module.app)
