@@ -488,9 +488,19 @@ textarea:focus {
   text-decoration: underline;
 }
 
-.recipe-notes,
+.recipe-meta,
 .score-line {
   margin-bottom: 0;
+}
+
+.recipe-content h4 {
+  margin: 0 0 6px;
+  color: #344054;
+}
+
+.recipe-content p {
+  margin-bottom: 0;
+  white-space: pre-line;
 }
 
 .score-line {

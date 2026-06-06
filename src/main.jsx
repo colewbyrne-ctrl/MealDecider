@@ -10,9 +10,9 @@ const blankRecipe = {
   time_minutes: 30,
   cuisine: "",
   difficulty: "easy",
-  equipment: "",
   tags: "",
-  notes: "",
+  ingredients: "",
+  instructions: "",
 };
 const blankQuiz = {
   max_time_minutes: 30,
@@ -69,9 +69,9 @@ function App() {
         recipe.name,
         recipe.cuisine,
         recipe.difficulty,
-        recipe.equipment,
         recipe.tags,
-        recipe.notes,
+        recipe.ingredients,
+        recipe.instructions,
       ]
         .filter(Boolean)
         .join(" ")
@@ -174,9 +174,9 @@ function App() {
       name: recipeName,
       cuisine,
       time_minutes: timeMinutes,
-      equipment: recipeForm.equipment.trim() || null,
       tags: recipeForm.tags.trim() || null,
-      notes: recipeForm.notes.trim() || null,
+      ingredients: recipeForm.ingredients.trim() || null,
+      instructions: recipeForm.instructions.trim() || null,
     };
 
     setLoading(true);
@@ -245,9 +245,9 @@ function App() {
       time_minutes: recipe.time_minutes,
       cuisine: recipe.cuisine,
       difficulty: recipe.difficulty,
-      equipment: recipe.equipment || "",
       tags: recipe.tags || "",
-      notes: recipe.notes || "",
+      ingredients: recipe.ingredients || "",
+      instructions: recipe.instructions || "",
     });
     setPage("manage");
   }
@@ -403,9 +403,9 @@ function App() {
         time_minutes: recipe.time_minutes || 30,
         cuisine: recipe.cuisine || "",
         difficulty: recipe.difficulty || "easy",
-        equipment: recipe.equipment || "",
         tags: recipe.tags || "",
-        notes: recipe.notes || "",
+        ingredients: recipe.ingredients || "",
+        instructions: recipe.instructions || "",
       });
       setEditingId(null);
       setPage("manage");
@@ -496,6 +496,25 @@ function App() {
     );
   }
 
+  function renderRecipeContent(recipe) {
+    return (
+      <>
+        {recipe.ingredients && (
+          <section className="recipe-content">
+            <h4>Ingredients</h4>
+            <p>{recipe.ingredients}</p>
+          </section>
+        )}
+        {recipe.instructions && (
+          <section className="recipe-content">
+            <h4>Instructions</h4>
+            <p>{recipe.instructions}</p>
+          </section>
+        )}
+      </>
+    );
+  }
+
   function renderManagePage() {
     return (
       <div className="content-grid">
@@ -553,20 +572,21 @@ function App() {
             </label>
           </div>
           <label>
-            Equipment
-            <input
-              value={recipeForm.equipment}
-              onChange={(event) =>
-                setRecipeForm({ ...recipeForm, equipment: event.target.value })
-              }
+            Ingredients
+            <textarea
+              rows="6"
+              value={recipeForm.ingredients}
+              onChange={(event) => setRecipeForm({ ...recipeForm, ingredients: event.target.value })}
+              placeholder="Add one ingredient per line"
             />
           </label>
           <label>
-            Notes
+            Instructions
             <textarea
-              rows="4"
-              value={recipeForm.notes}
-              onChange={(event) => setRecipeForm({ ...recipeForm, notes: event.target.value })}
+              rows="8"
+              value={recipeForm.instructions}
+              onChange={(event) => setRecipeForm({ ...recipeForm, instructions: event.target.value })}
+              placeholder="Describe how to prepare the recipe"
             />
           </label>
           <div className="actions">
@@ -642,7 +662,7 @@ function App() {
             <input
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Name, cuisine, tag, notes..."
+              placeholder="Name, cuisine, tag, ingredient..."
             />
           </label>
         </div>
@@ -685,17 +705,12 @@ function App() {
                 )}
               </div>
               {renderRecipeSummary(selectedRecipe)}
-              {selectedRecipe.equipment && (
-                <p className="recipe-notes">
-                  <strong>Equipment:</strong> {selectedRecipe.equipment}
-                </p>
-              )}
               {selectedRecipe.tags && (
-                <p className="recipe-notes">
+                <p className="recipe-meta">
                   <strong>Tags:</strong> {selectedRecipe.tags}
                 </p>
               )}
-              {selectedRecipe.notes && <p className="recipe-notes">{selectedRecipe.notes}</p>}
+              {renderRecipeContent(selectedRecipe)}
               {selectedRecipe.source_url && (
                 <a className="source-link" href={selectedRecipe.source_url} target="_blank" rel="noreferrer">
                   Open original recipe
@@ -808,6 +823,7 @@ function App() {
                 <p className="eyebrow">New Recipe Option</p>
                 <h3>{option.recipe.name}</h3>
                 {renderRecipeSummary(option.recipe)}
+                {renderRecipeContent(option.recipe)}
                 <p className="score-line">Match score: {Math.round(option.score * 100)}%</p>
                 <ul className="reason-list">
                   {option.reasons.map((reason) => (

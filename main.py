@@ -111,9 +111,9 @@ class Recipe(Base):
     time_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     cuisine: Mapped[str] = mapped_column(String(80), index=True, nullable=False)
     difficulty: Mapped[str] = mapped_column(String(40), default="easy")
-    equipment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ingredients: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     source: Mapped[str] = mapped_column(String(40), default="user")
     source_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     external_id: Mapped[Optional[str]] = mapped_column(String(80), nullable=True, index=True)
@@ -167,9 +167,9 @@ class RecipeCreate(BaseModel):
     time_minutes: int = Field(..., ge=0)
     cuisine: str = Field(..., min_length=1, max_length=80)
     difficulty: str = Field(default="easy", max_length=40)
-    equipment: Optional[str] = None
     tags: Optional[str] = None
-    notes: Optional[str] = None
+    ingredients: Optional[str] = None
+    instructions: Optional[str] = None
 
 
 class PhotoMealAnalyzeRequest(BaseModel):
@@ -181,9 +181,9 @@ class RecipeUpdate(BaseModel):
     time_minutes: Optional[int] = Field(default=None, ge=0)
     cuisine: Optional[str] = Field(default=None, min_length=1, max_length=80)
     difficulty: Optional[str] = Field(default=None, max_length=40)
-    equipment: Optional[str] = None
     tags: Optional[str] = None
-    notes: Optional[str] = None
+    ingredients: Optional[str] = None
+    instructions: Optional[str] = None
 
 
 class RecipeRead(RecipeCreate):
@@ -293,6 +293,14 @@ def ensure_schema():
                 connection.execute(text("ALTER TABLE recipes ADD COLUMN source_url TEXT"))
             if "external_id" not in recipe_columns:
                 connection.execute(text("ALTER TABLE recipes ADD COLUMN external_id VARCHAR(80)"))
+            if "ingredients" not in recipe_columns:
+                connection.execute(text("ALTER TABLE recipes ADD COLUMN ingredients TEXT"))
+            if "instructions" not in recipe_columns:
+                connection.execute(text("ALTER TABLE recipes ADD COLUMN instructions TEXT"))
+            if "equipment" in recipe_columns:
+                connection.execute(text("ALTER TABLE recipes DROP COLUMN equipment"))
+            if "notes" in recipe_columns:
+                connection.execute(text("ALTER TABLE recipes DROP COLUMN notes"))
             if "servings" in recipe_columns and engine.dialect.name == "postgresql":
                 connection.execute(text("ALTER TABLE recipes ALTER COLUMN servings SET DEFAULT 0"))
                 connection.execute(text("ALTER TABLE recipes ALTER COLUMN servings DROP NOT NULL"))
@@ -432,8 +440,6 @@ def recipe_keyword_terms(recipe: Recipe) -> set[str]:
         recipe.name,
         recipe.cuisine,
         recipe.tags,
-        recipe.equipment,
-        recipe.notes,
     )
 
 
@@ -489,21 +495,15 @@ def build_external_recipe(meal: dict, current_user: User) -> Recipe:
         ]
         if item and item.strip()
     )
-    notes = "Imported from TheMealDB."
-    if ingredients:
-        notes = f"{notes} Ingredients: {', '.join(ingredients)}."
-    if source_url:
-        notes = f"{notes} Full recipe: {source_url}"
-
     return Recipe(
         owner_id=current_user.id,
         name=(meal.get("strMeal") or "Imported Recipe").strip()[:120],
         time_minutes=0,
         cuisine=(meal.get("strArea") or "International").strip()[:80],
         difficulty="unknown",
-        equipment=None,
         tags=tags[:1000] if tags else "external",
-        notes=notes,
+        ingredients="\n".join(ingredients) or None,
+        instructions=(meal.get("strInstructions") or "").strip() or None,
         source="themealdb",
         source_url=source_url,
         external_id=meal.get("idMeal"),
@@ -557,18 +557,18 @@ def analyze_meal_photo(image_data_url: str) -> RecipeCreate:
                             "time_minutes": {"type": "integer", "minimum": 0, "maximum": 480},
                             "cuisine": {"type": "string", "minLength": 1, "maxLength": 80},
                             "difficulty": {"type": "string", "enum": ["easy", "medium", "hard"]},
-                            "equipment": {"type": "string", "maxLength": 1000},
                             "tags": {"type": "string", "maxLength": 1000},
-                            "notes": {"type": "string", "maxLength": 2000},
+                            "ingredients": {"type": "string", "maxLength": 4000},
+                            "instructions": {"type": "string", "maxLength": 8000},
                         },
                         "required": [
                             "name",
                             "time_minutes",
                             "cuisine",
                             "difficulty",
-                            "equipment",
                             "tags",
-                            "notes",
+                            "ingredients",
+                            "instructions",
                         ],
                     },
                 }
@@ -591,7 +591,7 @@ def analyze_meal_photo(image_data_url: str) -> RecipeCreate:
                             "text": (
                                 "Analyze this meal photo and return a practical saved recipe. "
                                 "Infer the most likely dish name, cuisine, approximate prep/cook "
-                                "time in minutes, difficulty, likely equipment, tags, and concise notes. "
+                                "time in minutes, difficulty, tags, ingredients, and cooking instructions. "
                                 "If the photo is unclear, still make the best conservative estimate."
                             ),
                         },
@@ -621,9 +621,9 @@ def analyze_meal_photo(image_data_url: str) -> RecipeCreate:
         time_minutes=payload.get("time_minutes", 0),
         cuisine=payload.get("cuisine", "Unknown"),
         difficulty=normalize_difficulty(payload.get("difficulty")),
-        equipment=payload.get("equipment") or None,
         tags=payload.get("tags") or "photo scan",
-        notes=payload.get("notes") or "Created from a meal photo.",
+        ingredients=payload.get("ingredients") or None,
+        instructions=payload.get("instructions") or None,
     )
 
 

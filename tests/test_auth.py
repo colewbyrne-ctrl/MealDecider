@@ -100,6 +100,56 @@ def test_created_recipe_is_returned_for_user_profile(app_module):
     assert [recipe["name"] for recipe in list_response.json()] == ["Profile Pasta"]
 
 
+def test_recipe_stores_ingredients_and_instructions_without_legacy_fields(app_module):
+    client = TestClient(app_module.app)
+    register_response = client.post(
+        "/auth/register",
+        json={"name": "Cole", "email": "recipe-content@example.com", "password": "correct horse"},
+    )
+    headers = {"Authorization": f"Bearer {register_response.json()['token']}"}
+
+    response = client.post(
+        "/recipes",
+        json={
+            "name": "Tomato Pasta",
+            "time_minutes": 20,
+            "cuisine": "Italian",
+            "difficulty": "easy",
+            "ingredients": "pasta\ntomatoes",
+            "instructions": "Boil pasta.\nAdd tomatoes.",
+            "equipment": "legacy pot",
+            "notes": "legacy note",
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    recipe = response.json()
+    assert recipe["ingredients"] == "pasta\ntomatoes"
+    assert recipe["instructions"] == "Boil pasta.\nAdd tomatoes."
+    assert "equipment" not in recipe
+    assert "notes" not in recipe
+
+
+def test_ingredients_and_instructions_are_not_recommendation_keywords(app_module):
+    recipe = app_module.Recipe(
+        name="Weeknight Bowl",
+        time_minutes=20,
+        cuisine="Any",
+        difficulty="easy",
+        tags="quick",
+        ingredients="dragonfruit",
+        instructions="Serve with saffron.",
+    )
+
+    terms = app_module.recipe_keyword_terms(recipe)
+
+    assert "weeknight" in terms
+    assert "quick" in terms
+    assert "dragonfruit" not in terms
+    assert "saffron" not in terms
+
+
 def test_create_recipe_handles_legacy_servings_column(app_module):
     client = TestClient(app_module.app)
 
