@@ -11,6 +11,7 @@ Meal Decider is a full-stack recipe manager for keeping a private list of meal o
 - Meal quiz that ranks saved recipes by max time, max difficulty, cuisine, and tags
 - Persisted two-week meal calendar with recipes, custom messages, and schedule generation
 - External recipe suggestions from TheMealDB, with optional save into your account
+- Progressive Web App support for adding Meal Decider to an iPhone Home Screen
 - Responsive Vite React interface for desktop, landscape, and portrait layouts
 - FastAPI backend with SQLAlchemy and environment-driven database configuration
 
@@ -64,6 +65,10 @@ npm run dev
 ```
 
 The frontend runs at `http://127.0.0.1:5173`, and the API runs at `http://127.0.0.1:8000`.
+
+## iPhone Home Screen App
+
+Meal Decider includes PWA metadata, icons, and a service worker. After deploying to HTTPS, open the site in Safari on iPhone, tap Share, and choose Add to Home Screen.
 
 ## Configuration
 
