@@ -73,6 +73,58 @@ const measurementUnits = new Set([
   "teaspoons",
   "tsp",
 ]);
+const unitAliases = {
+  bag: "bag",
+  bags: "bag",
+  bottle: "bottle",
+  bottles: "bottle",
+  box: "box",
+  boxes: "box",
+  bunch: "bunch",
+  bunches: "bunch",
+  can: "can",
+  cans: "can",
+  clove: "clove",
+  cloves: "clove",
+  cup: "cup",
+  cups: "cup",
+  g: "g",
+  gallon: "gallon",
+  gallons: "gallon",
+  gram: "g",
+  grams: "g",
+  kg: "kg",
+  lb: "lb",
+  lbs: "lb",
+  liter: "liter",
+  liters: "liter",
+  ml: "ml",
+  ounce: "oz",
+  ounces: "oz",
+  oz: "oz",
+  package: "package",
+  packages: "package",
+  packet: "packet",
+  packets: "packet",
+  pinch: "pinch",
+  pinches: "pinch",
+  pint: "pint",
+  pints: "pint",
+  pound: "lb",
+  pounds: "lb",
+  quart: "quart",
+  quarts: "quart",
+  slice: "slice",
+  slices: "slice",
+  sprig: "sprig",
+  sprigs: "sprig",
+  tablespoon: "tbsp",
+  tablespoons: "tbsp",
+  tbsp: "tbsp",
+  teaspoon: "tsp",
+  teaspoons: "tsp",
+  tsp: "tsp",
+};
 
 function parseAmountToken(token) {
   const normalized = token.trim().replace(",", ".");
@@ -113,6 +165,11 @@ function normalizeIngredientName(value) {
     .replace(/\s+/g, " ");
 }
 
+function normalizeMeasurementUnit(value) {
+  const unit = value.toLowerCase().replace(/\.$/, "");
+  return unitAliases[unit] || unit;
+}
+
 function parseIngredientLine(line) {
   const cleaned = line.replace(/^[-*]\s*/, "").trim();
   if (!cleaned) {
@@ -122,6 +179,14 @@ function parseIngredientLine(line) {
   const tokens = cleaned.split(/\s+/);
   let amount = parseAmountToken(tokens[0]);
   let cursor = 0;
+  let compactUnit = "";
+  if (amount === null) {
+    const compactMatch = tokens[0].match(/^(\d+(?:[.,]\d+)?)([a-zA-Z]+)$/);
+    if (compactMatch && measurementUnits.has(compactMatch[2].toLowerCase())) {
+      amount = parseAmountToken(compactMatch[1]);
+      compactUnit = compactMatch[2];
+    }
+  }
   if (amount !== null) {
     cursor = 1;
     const secondAmount = parseAmountToken(tokens[1] || "");
@@ -132,8 +197,10 @@ function parseIngredientLine(line) {
   }
 
   let unit = "";
-  if (amount !== null && measurementUnits.has((tokens[cursor] || "").toLowerCase().replace(/\.$/, ""))) {
-    unit = tokens[cursor].toLowerCase().replace(/\.$/, "");
+  if (compactUnit) {
+    unit = normalizeMeasurementUnit(compactUnit);
+  } else if (amount !== null && measurementUnits.has((tokens[cursor] || "").toLowerCase().replace(/\.$/, ""))) {
+    unit = normalizeMeasurementUnit(tokens[cursor]);
     cursor += 1;
   }
 
@@ -786,6 +853,12 @@ function App() {
     );
   }
 
+  function deselectAllShoppingRecipes() {
+    setShoppingEntryIds([]);
+    setCheckedShoppingItems({});
+    setMessage("Shopping list selections cleared.");
+  }
+
   function toggleShoppingItem(itemKey) {
     setCheckedShoppingItems((current) => ({ ...current, [itemKey]: !current[itemKey] }));
   }
@@ -1210,13 +1283,22 @@ function App() {
                 <h3>Calendar recipes</h3>
                 <p>{selectedShoppingEntries.length} selected for this list.</p>
               </div>
-              <button
-                className="secondary"
-                onClick={addAllCalendarRecipesToShoppingList}
-                disabled={calendarRecipeEntries.length === 0}
-              >
-                Add all
-              </button>
+              <div className="shopping-heading-actions">
+                <button
+                  className="secondary"
+                  onClick={addAllCalendarRecipesToShoppingList}
+                  disabled={calendarRecipeEntries.length === 0}
+                >
+                  Add all
+                </button>
+                <button
+                  className="secondary"
+                  onClick={deselectAllShoppingRecipes}
+                  disabled={shoppingEntryIds.length === 0}
+                >
+                  Deselect all
+                </button>
+              </div>
             </div>
 
             {calendarRecipeEntries.length === 0 ? (

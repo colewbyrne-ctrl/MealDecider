@@ -645,6 +645,13 @@ textarea:focus {
   gap: 12px;
 }
 
+.shopping-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .shopping-heading h3,
 .shopping-heading p {
   margin-bottom: 4px;
@@ -773,7 +780,8 @@ textarea:focus {
   }
 
   .toolbar-actions,
-  .shopping-heading {
+  .shopping-heading,
+  .shopping-heading-actions {
     align-items: stretch;
     flex-direction: column;
   }
