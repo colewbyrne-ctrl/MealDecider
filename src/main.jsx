@@ -20,7 +20,65 @@ const blankQuiz = {
   cuisine: "",
   tags: "",
   saved_count: 1,
+  available_ingredients: "",
 };
+const pantryIngredients = new Set([
+  "baking powder",
+  "baking soda",
+  "bay leaf",
+  "bay leaves",
+  "black pepper",
+  "butter",
+  "cayenne",
+  "chili powder",
+  "cinnamon",
+  "cooking spray",
+  "cumin",
+  "flour",
+  "garlic powder",
+  "honey",
+  "hot sauce",
+  "ketchup",
+  "mayonnaise",
+  "mustard",
+  "oil",
+  "olive oil",
+  "onion powder",
+  "oregano",
+  "paprika",
+  "parsley",
+  "pepper",
+  "red pepper flakes",
+  "salt",
+  "soy sauce",
+  "sugar",
+  "thyme",
+  "vegetable oil",
+  "vinegar",
+  "water",
+]);
+const ingredientWordsToIgnore = new Set([
+  "and",
+  "chopped",
+  "crushed",
+  "diced",
+  "drained",
+  "fresh",
+  "freshly",
+  "grated",
+  "ground",
+  "large",
+  "medium",
+  "minced",
+  "optional",
+  "peeled",
+  "raw",
+  "shredded",
+  "sliced",
+  "small",
+  "to",
+  "taste",
+]);
 const measurementUnits = new Set([
   "bag",
   "bags",
@@ -161,8 +219,58 @@ function normalizeIngredientName(value) {
   return value
     .toLowerCase()
     .replace(/\([^)]*\)/g, "")
+    .replace(/['"]/g, "")
     .replace(/^[\s,.;:-]+|[\s,.;:-]+$/g, "")
     .replace(/\s+/g, " ");
+}
+
+function singularizeIngredient(value) {
+  if (value.endsWith("ies") && value.length > 4) {
+    return `${value.slice(0, -3)}y`;
+  }
+  if (value.endsWith("oes") && value.length > 4) {
+    return value.slice(0, -2);
+  }
+  if (value.endsWith("s") && !value.endsWith("ss") && value.length > 3) {
+    return value.slice(0, -1);
+  }
+  return value;
+}
+
+function normalizeIngredientForMatch(value) {
+  return normalizeIngredientName(value)
+    .split(/\s+/)
+    .filter((word) => word && !ingredientWordsToIgnore.has(word))
+    .map(singularizeIngredient)
+    .join(" ");
+}
+
+function isPantryIngredient(value) {
+  const ingredient = normalizeIngredientForMatch(value);
+  if (!ingredient) {
+    return true;
+  }
+  if (pantryIngredients.has(ingredient)) {
+    return true;
+  }
+  return ingredient
+    .split(/\s+/)
+    .every((word) => pantryIngredients.has(word) || ingredientWordsToIgnore.has(word));
+}
+
+function ingredientsMatch(availableIngredient, recipeIngredient) {
+  return (
+    availableIngredient === recipeIngredient ||
+    availableIngredient.includes(recipeIngredient) ||
+    recipeIngredient.includes(availableIngredient)
+  );
+}
+
+function splitIngredientInput(value) {
+  return value
+    .split(/\r?\n|,/)
+    .map(normalizeIngredientForMatch)
+    .filter((ingredient) => ingredient && !isPantryIngredient(ingredient));
 }
 
 function normalizeMeasurementUnit(value) {
@@ -222,6 +330,16 @@ function parseRecipeIngredients(recipe) {
     .split(/\r?\n|,/)
     .map(parseIngredientLine)
     .filter(Boolean);
+}
+
+function getCoreRecipeIngredients(recipe) {
+  return Array.from(
+    new Set(
+      parseRecipeIngredients(recipe)
+        .map((ingredient) => normalizeIngredientForMatch(ingredient.displayName))
+        .filter((ingredient) => ingredient && !isPantryIngredient(ingredient)),
+    ),
+  );
 }
 
 function toLocalDateString(date) {
@@ -595,6 +713,81 @@ function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function findMealsFromIngredients() {
+    setMessage("");
+    setExternalRecommendations([]);
+    setRecommendations([]);
+
+    const availableIngredients = splitIngredientInput(quizForm.available_ingredients);
+    if (availableIngredients.length === 0) {
+      setMessage("Add at least one main ingredient you have on hand.");
+      return;
+    }
+
+    const scoredRecipes = recipes
+      .map((recipe) => {
+        const coreIngredients = getCoreRecipeIngredients(recipe);
+        if (coreIngredients.length === 0) {
+          return null;
+        }
+
+        const matchedIngredients = coreIngredients.filter((ingredient) =>
+          availableIngredients.some((availableIngredient) =>
+            ingredientsMatch(availableIngredient, ingredient),
+          ),
+        );
+        const missingIngredients = coreIngredients.filter(
+          (ingredient) => !matchedIngredients.includes(ingredient),
+        );
+        const matchRatio = matchedIngredients.length / coreIngredients.length;
+
+        return {
+          recipe,
+          matchedIngredients,
+          missingIngredients,
+          matchRatio,
+          canMake: missingIngredients.length === 0,
+        };
+      })
+      .filter(Boolean)
+      .filter((match) => match.matchedIngredients.length > 0)
+      .sort((left, right) => {
+        if (left.canMake !== right.canMake) {
+          return left.canMake ? -1 : 1;
+        }
+        if (right.matchRatio !== left.matchRatio) {
+          return right.matchRatio - left.matchRatio;
+        }
+        return left.missingIngredients.length - right.missingIngredients.length;
+      });
+
+    const canMakeRecipes = scoredRecipes.filter((match) => match.canMake);
+    const optionsSource = canMakeRecipes.length ? canMakeRecipes : scoredRecipes;
+    const options = optionsSource.slice(0, Number(quizForm.saved_count)).map((match) => {
+      const reasons = [
+        `matches what you have: ${match.matchedIngredients.join(", ")}`,
+      ];
+      if (match.canMake) {
+        reasons.push("only needs pantry basics beyond your ingredient list");
+      } else {
+        reasons.push(`closest match; still missing: ${match.missingIngredients.join(", ")}`);
+      }
+      return { recipe: match.recipe, reasons };
+    });
+
+    setRecommendations(options);
+    if (options[0]) {
+      setSelectedRecipeId(options[0].recipe.id);
+    }
+    setMessage(
+      options.length
+        ? canMakeRecipes.length
+          ? `Found ${options.length} saved recipe${options.length === 1 ? "" : "s"} you can make.`
+          : `No exact matches, but found ${options.length} close saved recipe${options.length === 1 ? "" : "s"}.`
+        : "No saved recipes matched those ingredients.",
+    );
   }
 
   async function generateExternalRecipe() {
@@ -1471,9 +1664,28 @@ function App() {
               placeholder="Optional: quick, spicy"
             />
           </label>
+          <label>
+            Main ingredients on hand
+            <textarea
+              rows="5"
+              value={quizForm.available_ingredients}
+              onChange={(event) =>
+                setQuizForm({ ...quizForm, available_ingredients: event.target.value })
+              }
+              placeholder="Chicken, rice, broccoli"
+            />
+          </label>
           <div className="actions">
             <button className="primary" disabled={loading || recipes.length === 0}>
               {loading ? "Thinking..." : "Pick saved meal"}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={findMealsFromIngredients}
+              disabled={loading || recipes.length === 0}
+            >
+              Find from ingredients
             </button>
             <button
               type="button"
