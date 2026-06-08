@@ -1,4 +1,4 @@
-const CACHE_NAME = "meal-decider-v1";
+const CACHE_NAME = "meal-decider-v2";
 const APP_SHELL = ["/", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -18,6 +18,21 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(event.request.url);
   if (requestUrl.pathname.startsWith("/api") || event.request.method !== "GET") {
+    return;
+  }
+
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse.ok && requestUrl.origin === self.location.origin) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request).then((cachedResponse) => cachedResponse || caches.match("/"))),
+    );
     return;
   }
 
