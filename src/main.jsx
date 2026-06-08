@@ -21,6 +21,141 @@ const blankQuiz = {
   tags: "",
   saved_count: 1,
 };
+const measurementUnits = new Set([
+  "bag",
+  "bags",
+  "bottle",
+  "bottles",
+  "box",
+  "boxes",
+  "bunch",
+  "bunches",
+  "can",
+  "cans",
+  "clove",
+  "cloves",
+  "cup",
+  "cups",
+  "g",
+  "gallon",
+  "gallons",
+  "gram",
+  "grams",
+  "kg",
+  "lb",
+  "lbs",
+  "liter",
+  "liters",
+  "ml",
+  "ounce",
+  "ounces",
+  "oz",
+  "package",
+  "packages",
+  "packet",
+  "packets",
+  "pinch",
+  "pinches",
+  "pint",
+  "pints",
+  "pound",
+  "pounds",
+  "quart",
+  "quarts",
+  "slice",
+  "slices",
+  "sprig",
+  "sprigs",
+  "tablespoon",
+  "tablespoons",
+  "tbsp",
+  "teaspoon",
+  "teaspoons",
+  "tsp",
+]);
+
+function parseAmountToken(token) {
+  const normalized = token.trim().replace(",", ".");
+  if (!normalized) {
+    return null;
+  }
+  if (/^\d+(\.\d+)?$/.test(normalized)) {
+    return Number(normalized);
+  }
+  const fractionMatch = normalized.match(/^(\d+)\/(\d+)$/);
+  if (fractionMatch) {
+    const denominator = Number(fractionMatch[2]);
+    return denominator ? Number(fractionMatch[1]) / denominator : null;
+  }
+  const mixedFractionMatch = normalized.match(/^(\d+)-(\d+)\/(\d+)$/);
+  if (mixedFractionMatch) {
+    const denominator = Number(mixedFractionMatch[3]);
+    return denominator
+      ? Number(mixedFractionMatch[1]) + Number(mixedFractionMatch[2]) / denominator
+      : null;
+  }
+  return null;
+}
+
+function formatAmount(amount) {
+  if (amount === null || amount === undefined) {
+    return "";
+  }
+  const rounded = Math.round(amount * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+}
+
+function normalizeIngredientName(value) {
+  return value
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, "")
+    .replace(/^[\s,.;:-]+|[\s,.;:-]+$/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function parseIngredientLine(line) {
+  const cleaned = line.replace(/^[-*]\s*/, "").trim();
+  if (!cleaned) {
+    return null;
+  }
+
+  const tokens = cleaned.split(/\s+/);
+  let amount = parseAmountToken(tokens[0]);
+  let cursor = 0;
+  if (amount !== null) {
+    cursor = 1;
+    const secondAmount = parseAmountToken(tokens[1] || "");
+    if (secondAmount !== null) {
+      amount += secondAmount;
+      cursor = 2;
+    }
+  }
+
+  let unit = "";
+  if (amount !== null && measurementUnits.has((tokens[cursor] || "").toLowerCase().replace(/\.$/, ""))) {
+    unit = tokens[cursor].toLowerCase().replace(/\.$/, "");
+    cursor += 1;
+  }
+
+  const name = normalizeIngredientName(tokens.slice(cursor).join(" ") || cleaned);
+  if (!name) {
+    return null;
+  }
+
+  return {
+    amount,
+    displayName: name,
+    key: `${name}|${unit}`,
+    unit,
+  };
+}
+
+function parseRecipeIngredients(recipe) {
+  return (recipe.ingredients || "")
+    .split(/\r?\n|,/)
+    .map(parseIngredientLine)
+    .filter(Boolean);
+}
 
 function toLocalDateString(date) {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -69,6 +204,8 @@ function App() {
   const [photoPreview, setPhotoPreview] = useState("");
   const [mealPlanEntries, setMealPlanEntries] = useState([]);
   const [calendarInputs, setCalendarInputs] = useState({});
+  const [shoppingEntryIds, setShoppingEntryIds] = useState([]);
+  const [checkedShoppingItems, setCheckedShoppingItems] = useState({});
   const calendarDays = useMemo(buildCalendarDays, []);
 
   const authHeaders = useMemo(
@@ -105,6 +242,43 @@ function App() {
     () => recipes.find((recipe) => recipe.id === selectedRecipeId) || null,
     [recipes, selectedRecipeId],
   );
+  const calendarRecipeEntries = useMemo(
+    () => mealPlanEntries.filter((entry) => entry.recipe),
+    [mealPlanEntries],
+  );
+  const selectedShoppingEntries = useMemo(
+    () => calendarRecipeEntries.filter((entry) => shoppingEntryIds.includes(entry.id)),
+    [calendarRecipeEntries, shoppingEntryIds],
+  );
+  const shoppingItems = useMemo(() => {
+    const itemMap = new Map();
+    selectedShoppingEntries.forEach((entry) => {
+      parseRecipeIngredients(entry.recipe).forEach((ingredient) => {
+        const existing = itemMap.get(ingredient.key);
+        if (!existing) {
+          itemMap.set(ingredient.key, {
+            ...ingredient,
+            amount: ingredient.amount,
+            recipeNames: new Set([entry.recipe.name]),
+          });
+          return;
+        }
+        if (existing.amount !== null && ingredient.amount !== null) {
+          existing.amount += ingredient.amount;
+        } else {
+          existing.amount = null;
+        }
+        existing.recipeNames.add(entry.recipe.name);
+      });
+    });
+
+    return Array.from(itemMap.values())
+      .map((item) => ({
+        ...item,
+        recipeNames: Array.from(item.recipeNames).sort((left, right) => left.localeCompare(right)),
+      }))
+      .sort((left, right) => left.displayName.localeCompare(right.displayName));
+  }, [selectedShoppingEntries]);
 
   useEffect(() => {
     if (token) {
@@ -118,6 +292,18 @@ function App() {
       setSelectedRecipeId(null);
     }
   }, [selectedRecipe, selectedRecipeId]);
+
+  useEffect(() => {
+    const availableIds = new Set(calendarRecipeEntries.map((entry) => entry.id));
+    setShoppingEntryIds((entryIds) => entryIds.filter((entryId) => availableIds.has(entryId)));
+  }, [calendarRecipeEntries]);
+
+  useEffect(() => {
+    const availableKeys = new Set(shoppingItems.map((item) => item.key));
+    setCheckedShoppingItems((current) =>
+      Object.fromEntries(Object.entries(current).filter(([key]) => availableKeys.has(key))),
+    );
+  }, [shoppingItems]);
 
   async function request(path, options = {}) {
     const response = await fetch(`${API_URL}${path}`, options);
@@ -529,6 +715,7 @@ function App() {
     try {
       await request(`/meal-plan/${entryId}`, { method: "DELETE", headers: authHeaders });
       setMealPlanEntries((entries) => entries.filter((entry) => entry.id !== entryId));
+      setShoppingEntryIds((entryIds) => entryIds.filter((currentId) => currentId !== entryId));
       setMessage("Calendar entry removed.");
     } catch (error) {
       setMessage(error.message);
@@ -573,6 +760,36 @@ function App() {
     }
   }
 
+  function addCalendarEntryToShoppingList(entry) {
+    if (!entry.recipe) {
+      return;
+    }
+    setShoppingEntryIds((entryIds) =>
+      entryIds.includes(entry.id) ? entryIds : [...entryIds, entry.id],
+    );
+    setPage("shopping");
+    setMessage(`${entry.recipe.name} was added to the shopping list.`);
+  }
+
+  function removeCalendarEntryFromShoppingList(entryId) {
+    setShoppingEntryIds((entryIds) => entryIds.filter((currentId) => currentId !== entryId));
+  }
+
+  function addAllCalendarRecipesToShoppingList() {
+    const entryIds = calendarRecipeEntries.map((entry) => entry.id);
+    setShoppingEntryIds(entryIds);
+    setPage("shopping");
+    setMessage(
+      entryIds.length
+        ? `${entryIds.length} calendar recipe${entryIds.length === 1 ? "" : "s"} added to the shopping list.`
+        : "Add recipes to the calendar before building a shopping list.",
+    );
+  }
+
+  function toggleShoppingItem(itemKey) {
+    setCheckedShoppingItems((current) => ({ ...current, [itemKey]: !current[itemKey] }));
+  }
+
   async function logout() {
     try {
       if (token) {
@@ -593,6 +810,8 @@ function App() {
     setExternalRecommendations([]);
     setRecommendations([]);
     setMealPlanEntries([]);
+    setShoppingEntryIds([]);
+    setCheckedShoppingItems({});
     setPage("manage");
     setMessage("Signed out.");
   }
@@ -872,13 +1091,22 @@ function App() {
             <h3>Next two weeks</h3>
             <p>Plan one or more meals per day, or add reminders such as Leftovers.</p>
           </div>
-          <button
-            className="primary"
-            onClick={generateFullMealPlan}
-            disabled={loading || recipes.length === 0}
-          >
-            {loading ? "Generating..." : "Generate full schedule"}
-          </button>
+          <div className="toolbar-actions">
+            <button
+              className="secondary"
+              onClick={addAllCalendarRecipesToShoppingList}
+              disabled={calendarRecipeEntries.length === 0}
+            >
+              Add all to shopping list
+            </button>
+            <button
+              className="primary"
+              onClick={generateFullMealPlan}
+              disabled={loading || recipes.length === 0}
+            >
+              {loading ? "Generating..." : "Generate full schedule"}
+            </button>
+          </div>
         </div>
 
         <div className="calendar-grid">
@@ -897,14 +1125,25 @@ function App() {
                     entries.map((entry) => (
                       <div className="day-entry" key={entry.id}>
                         <span>{entry.recipe?.name || entry.custom_message}</span>
-                        <button
-                          className="remove-entry"
-                          onClick={() => removeMealPlanEntry(entry.id)}
-                          disabled={loading}
-                          aria-label={`Remove ${entry.recipe?.name || entry.custom_message}`}
-                        >
-                          Remove
-                        </button>
+                        <div className="entry-actions">
+                          {entry.recipe && (
+                            <button
+                              className="remove-entry"
+                              onClick={() => addCalendarEntryToShoppingList(entry)}
+                              disabled={loading || shoppingEntryIds.includes(entry.id)}
+                            >
+                              {shoppingEntryIds.includes(entry.id) ? "Added" : "Shop"}
+                            </button>
+                          )}
+                          <button
+                            className="remove-entry"
+                            onClick={() => removeMealPlanEntry(entry.id)}
+                            disabled={loading}
+                            aria-label={`Remove ${entry.recipe?.name || entry.custom_message}`}
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </div>
                     ))
                   ) : (
@@ -956,6 +1195,99 @@ function App() {
               </article>
             );
           })}
+        </div>
+      </div>
+    );
+  }
+
+  function renderShoppingPage() {
+    return (
+      <div className="shopping-page">
+        <div className="shopping-layout">
+          <section className="shopping-panel">
+            <div className="shopping-heading">
+              <div>
+                <h3>Calendar recipes</h3>
+                <p>{selectedShoppingEntries.length} selected for this list.</p>
+              </div>
+              <button
+                className="secondary"
+                onClick={addAllCalendarRecipesToShoppingList}
+                disabled={calendarRecipeEntries.length === 0}
+              >
+                Add all
+              </button>
+            </div>
+
+            {calendarRecipeEntries.length === 0 ? (
+              <div className="empty-state">
+                <h3>No calendar recipes</h3>
+                <p>Add recipes to the meal calendar, then build your shopping list here.</p>
+              </div>
+            ) : (
+              <div className="shopping-recipe-list">
+                {calendarRecipeEntries.map((entry) => {
+                  const selected = shoppingEntryIds.includes(entry.id);
+                  return (
+                    <label className="shopping-recipe-option" key={entry.id}>
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() =>
+                          selected
+                            ? removeCalendarEntryFromShoppingList(entry.id)
+                            : addCalendarEntryToShoppingList(entry)
+                        }
+                      />
+                      <span>
+                        <strong>{entry.recipe.name}</strong>
+                        <small>{entry.plan_date}</small>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <section className="shopping-panel">
+            <div className="shopping-heading">
+              <div>
+                <h3>Shopping list</h3>
+                <p>{shoppingItems.length} tallied item{shoppingItems.length === 1 ? "" : "s"}.</p>
+              </div>
+            </div>
+
+            {shoppingItems.length === 0 ? (
+              <div className="empty-state">
+                <h3>No ingredients yet</h3>
+                <p>Select calendar recipes to combine their ingredients.</p>
+              </div>
+            ) : (
+              <div className="shopping-items">
+                {shoppingItems.map((item) => {
+                  const checked = Boolean(checkedShoppingItems[item.key]);
+                  const amountText = [formatAmount(item.amount), item.unit].filter(Boolean).join(" ");
+                  return (
+                    <label className={`shopping-item ${checked ? "checked" : ""}`} key={item.key}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleShoppingItem(item.key)}
+                      />
+                      <span>
+                        <strong>
+                          {amountText ? `${amountText} ` : ""}
+                          {item.displayName}
+                        </strong>
+                        <small>{item.recipeNames.join(", ")}</small>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </div>
       </div>
     );
@@ -1115,6 +1447,7 @@ function App() {
     manage: ["Recipe Manager", editingId ? "Edit recipe" : "Add recipe"],
     recipes: ["Library", "Recipes"],
     calendar: ["Meal Plan", "Two-week calendar"],
+    shopping: ["Shopping", "Grocery list"],
     decider: ["Decision", "Pick dinner"],
   };
 
@@ -1138,6 +1471,9 @@ function App() {
               </button>
               <button className={page === "calendar" ? "active" : ""} onClick={() => setPage("calendar")}>
                 Calendar
+              </button>
+              <button className={page === "shopping" ? "active" : ""} onClick={() => setPage("shopping")}>
+                Shopping
               </button>
               <button className={page === "decider" ? "active" : ""} onClick={() => setPage("decider")}>
                 Decide
@@ -1225,6 +1561,7 @@ function App() {
             {page === "manage" && renderManagePage()}
             {page === "recipes" && renderRecipesPage()}
             {page === "calendar" && renderCalendarPage()}
+            {page === "shopping" && renderShoppingPage()}
             {page === "decider" && renderDeciderPage()}
           </>
         ) : (

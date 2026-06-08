@@ -539,6 +539,13 @@ textarea:focus {
   margin-bottom: 4px;
 }
 
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -579,11 +586,23 @@ textarea:focus {
   font-weight: 800;
 }
 
+.entry-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .remove-entry {
   background: transparent;
   color: #963d31;
   font-size: 12px;
   font-weight: 800;
+}
+
+.remove-entry:disabled {
+  color: #5e6a7d;
 }
 
 .day-empty {
@@ -597,10 +616,92 @@ textarea:focus {
   min-height: 38px;
 }
 
+.shopping-page {
+  display: grid;
+  gap: 18px;
+}
+
+.shopping-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.shopping-panel {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  border: 1px solid #dbe0e7;
+  border-radius: 8px;
+  background: #fffdf8;
+  padding: 18px;
+}
+
+.shopping-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.shopping-heading h3,
+.shopping-heading p {
+  margin-bottom: 4px;
+}
+
+.shopping-recipe-list,
+.shopping-items {
+  display: grid;
+  gap: 10px;
+}
+
+.shopping-recipe-option,
+.shopping-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  border: 1px solid #e4e8ef;
+  border-radius: 6px;
+  background: #fffaf1;
+  padding: 11px 12px;
+  color: #172033;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.shopping-recipe-option input,
+.shopping-item input {
+  width: 18px;
+  height: 18px;
+  min-height: auto;
+  margin: 2px 0 0;
+}
+
+.shopping-recipe-option span,
+.shopping-item span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.shopping-recipe-option small,
+.shopping-item small {
+  font-weight: 600;
+}
+
+.shopping-item.checked strong,
+.shopping-item.checked small {
+  color: #7b8494;
+  text-decoration: line-through;
+}
+
 @media (max-width: 920px), (orientation: portrait) {
   .app-shell,
   .content-grid,
-  .browser-grid {
+  .browser-grid,
+  .shopping-layout {
     grid-template-columns: 1fr;
   }
 
@@ -619,7 +720,7 @@ textarea:focus {
   }
 
   .app-nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
   }
 
   .app-nav button {
@@ -669,6 +770,25 @@ textarea:focus {
   .calendar-toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .toolbar-actions,
+  .shopping-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .toolbar-actions {
+    justify-content: stretch;
+  }
+
+  .day-entry {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .entry-actions {
+    justify-content: flex-start;
   }
 
   .recipe-card dl {
