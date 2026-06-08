@@ -827,6 +827,38 @@ function App() {
     }
   }
 
+  async function clearMealPlan() {
+    if (mealPlanEntries.length === 0) {
+      setMessage("The calendar is already empty.");
+      return;
+    }
+    if (!window.confirm("Clear every entry from the visible two-week calendar?")) {
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+    try {
+      const data = await request(`/meal-plan?start_date=${calendarDays[0].date}&days=14`, {
+        method: "DELETE",
+        headers: authHeaders,
+      });
+      const deletedIds = new Set(mealPlanEntries.map((entry) => entry.id));
+      setMealPlanEntries([]);
+      setShoppingEntryIds((entryIds) => entryIds.filter((entryId) => !deletedIds.has(entryId)));
+      setCheckedShoppingItems({});
+      setMessage(
+        data.deleted_count
+          ? `${data.deleted_count} calendar entr${data.deleted_count === 1 ? "y" : "ies"} cleared.`
+          : "The calendar is already empty.",
+      );
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function addCalendarEntryToShoppingList(entry) {
     if (!entry.recipe) {
       return;
@@ -1178,6 +1210,13 @@ function App() {
               disabled={loading || recipes.length === 0}
             >
               {loading ? "Generating..." : "Generate full schedule"}
+            </button>
+            <button
+              className="danger"
+              onClick={clearMealPlan}
+              disabled={loading || mealPlanEntries.length === 0}
+            >
+              Clear calendar
             </button>
           </div>
         </div>

@@ -282,6 +282,10 @@ class MealPlanRead(BaseModel):
     entries: list[MealPlanEntryRead]
 
 
+class MealPlanClearRead(BaseModel):
+    deleted_count: int
+
+
 SCORE_WEIGHTS = (0.20, 0.20, 0.30, 0.30)
 
 
@@ -984,6 +988,31 @@ def delete_meal_plan_entry(
     db.delete(entry)
     db.commit()
     return None
+
+
+@app.delete("/meal-plan", response_model=MealPlanClearRead)
+def clear_meal_plan(
+    start_date: date,
+    days: int = 14,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    days = max(1, min(days, 14))
+    end_date = start_date + timedelta(days=days - 1)
+    entries = (
+        db.query(MealPlanEntry)
+        .filter(
+            MealPlanEntry.owner_id == current_user.id,
+            MealPlanEntry.plan_date >= start_date.isoformat(),
+            MealPlanEntry.plan_date <= end_date.isoformat(),
+        )
+        .all()
+    )
+    deleted_count = len(entries)
+    for entry in entries:
+        db.delete(entry)
+    db.commit()
+    return MealPlanClearRead(deleted_count=deleted_count)
 
 
 @app.post("/meal-plan/generate-day", response_model=MealPlanEntryRead, status_code=status.HTTP_201_CREATED)
