@@ -4,6 +4,7 @@ import os
 import re
 import secrets
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode
 from urllib.error import HTTPError, URLError
@@ -13,7 +14,7 @@ from fastapi import Body, Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
-from sqlalchemy import ForeignKey, Integer, String, Text, create_engine, inspect, text
+from sqlalchemy import ForeignKey, Integer, String, Text, create_engine
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
@@ -293,8 +294,6 @@ def meal_score(features: list[float]) -> float:
     return sum(feature * weight for feature, weight in zip(features, SCORE_WEIGHTS))
 
 
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(title="Meal Decider API")
 security = HTTPBearer()
 
@@ -316,34 +315,31 @@ app.add_middleware(
 )
 
 
-def ensure_schema():
-    inspector = inspect(engine)
-    if "recipes" in inspector.get_table_names():
-        recipe_columns = {column["name"] for column in inspector.get_columns("recipes")}
-        with engine.begin() as connection:
-            if "owner_id" not in recipe_columns:
-                connection.execute(text("ALTER TABLE recipes ADD COLUMN owner_id INTEGER"))
-            if "source" not in recipe_columns:
-                connection.execute(text("ALTER TABLE recipes ADD COLUMN source VARCHAR(40) DEFAULT 'user'"))
-            if "source_url" not in recipe_columns:
-                connection.execute(text("ALTER TABLE recipes ADD COLUMN source_url TEXT"))
-            if "external_id" not in recipe_columns:
-                connection.execute(text("ALTER TABLE recipes ADD COLUMN external_id VARCHAR(80)"))
-            if "ingredients" not in recipe_columns:
-                connection.execute(text("ALTER TABLE recipes ADD COLUMN ingredients TEXT"))
-            if "instructions" not in recipe_columns:
-                connection.execute(text("ALTER TABLE recipes ADD COLUMN instructions TEXT"))
-            if "equipment" in recipe_columns:
-                connection.execute(text("ALTER TABLE recipes DROP COLUMN equipment"))
-            if "notes" in recipe_columns:
-                connection.execute(text("ALTER TABLE recipes DROP COLUMN notes"))
-            if "servings" in recipe_columns and engine.dialect.name == "postgresql":
-                connection.execute(text("ALTER TABLE recipes ALTER COLUMN servings SET DEFAULT 0"))
-                connection.execute(text("ALTER TABLE recipes ALTER COLUMN servings DROP NOT NULL"))
-    MealPlanEntry.__table__.create(bind=engine, checkfirst=True)
+ALEMBIC_INI_PATH = Path(__file__).resolve().parent / "alembic.ini"
+MIGRATIONS_PATH = Path(__file__).resolve().parent / "migrations"
 
 
-ensure_schema()
+def run_migrations() -> None:
+    """Bring the configured database up to the latest Alembic revision.
+
+    Alembic is the single source of truth for the schema. Running the upgrade at
+    startup keeps serverless cold starts self-provisioning (the previous
+    hand-written ALTER TABLE bootstrap did the same job less safely), and it is
+    idempotent thanks to Alembic's version table.
+    """
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config(str(ALEMBIC_INI_PATH))
+    config.set_main_option("script_location", str(MIGRATIONS_PATH))
+    config.set_main_option("sqlalchemy.url", DATABASE_URL)
+    command.upgrade(config, "head")
+
+
+# Skipped when the Alembic CLI is what imported this module (see migrations/env.py),
+# so the CLI's own migration run is never nested inside a second one.
+if os.getenv("MEAL_DECIDER_SKIP_STARTUP_MIGRATIONS") != "1":
+    run_migrations()
 
 
 def get_db():
