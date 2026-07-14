@@ -21,7 +21,8 @@ Meal Decider is a full-stack recipe manager for keeping a private list of meal o
 
 - Frontend: React, Vite, CSS
 - Backend: Python, FastAPI, SQLAlchemy, Pydantic
-- Database: Postgres
+- Database: Postgres, with Alembic migrations
+- CI: GitHub Actions (pytest + Vite build)
 
 ## Project Structure
 
@@ -30,13 +31,19 @@ Meal Decider is a full-stack recipe manager for keeping a private list of meal o
 |-- api/
 |   `-- index.py         # Vercel FastAPI entrypoint mounted at /api
 |-- main.py              # FastAPI app, models, auth, and recipe API routes
+|-- alembic.ini          # Alembic configuration
+|-- migrations/          # Alembic environment and versioned migrations
+|   |-- env.py
+|   `-- versions/
 |-- requirements.txt     # Python backend dependencies
 |-- package.json         # Frontend scripts and dependencies
 |-- vercel.json          # Vercel build and routing configuration
 |-- index.html           # Vite entry HTML
+|-- .github/workflows/   # CI pipeline (pytest + Vite build)
 |-- src/
 |   |-- main.jsx         # React application
 |   `-- styles.css       # App styles
+`-- tests/               # Backend pytest suite
 ```
 
 ## Local Setup
@@ -67,6 +74,40 @@ npm run dev
 ```
 
 The frontend runs at `http://127.0.0.1:5173`, and the API runs at `http://127.0.0.1:8000`.
+
+## Database Migrations
+
+The schema is managed by [Alembic](https://alembic.sqlalchemy.org/). Alembic reuses the
+app's SQLAlchemy models (`Base.metadata`) and the same `get_database_url()` resolver, so
+migrations always target the configured database.
+
+The app runs `alembic upgrade head` automatically on startup (see `run_migrations()` in
+`main.py`), which keeps serverless cold starts self-provisioning. You can also drive it
+manually:
+
+```powershell
+# Apply all migrations
+.\.venv\Scripts\alembic.exe upgrade head
+
+# Show the current revision / full history
+.\.venv\Scripts\alembic.exe current
+.\.venv\Scripts\alembic.exe history
+
+# Create a new migration after changing the models in main.py
+.\.venv\Scripts\alembic.exe revision --autogenerate -m "describe change"
+```
+
+### Adopting migrations on an existing database
+
+A database that already had its tables created by the pre-Alembic bootstrap has no
+`alembic_version` row, so the first `upgrade` would try to re-create existing tables.
+Stamp it as already-current **once** before deploying this change:
+
+```powershell
+.\.venv\Scripts\alembic.exe stamp head
+```
+
+Fresh/empty databases need no stamping — `upgrade head` builds them from scratch.
 
 ## iPhone Home Screen App
 
@@ -113,6 +154,9 @@ npm run build
 .\.venv\Scripts\python.exe -m py_compile main.py api\index.py
 .\.venv\Scripts\python.exe -m pytest
 ```
+
+These same checks (pytest + Vite build) run on every push and pull request via GitHub
+Actions (`.github/workflows/ci.yml`).
 
 To test the Vercel API wrapper locally:
 
