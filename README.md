@@ -19,9 +19,10 @@ Meal Decider is a full-stack recipe manager for keeping a private list of meal o
 
 ## Tech Stack
 
-- Frontend: React, Vite, CSS
+- Frontend: React, Vite, CSS, componentized into pages/hooks/lib with a shared API client
 - Backend: Python, FastAPI, SQLAlchemy, Pydantic
 - Database: Postgres, with Alembic migrations
+- Testing: pytest (backend), Vitest + React Testing Library (frontend)
 - CI: GitHub Actions (pytest + Vite build)
 
 ## Project Structure
@@ -40,8 +41,15 @@ Meal Decider is a full-stack recipe manager for keeping a private list of meal o
 |-- vercel.json          # Vercel build and routing configuration
 |-- index.html           # Vite entry HTML
 |-- .github/workflows/   # CI pipeline (pytest + Vite build)
+|-- vite.config.js       # Vite + Vitest configuration
 |-- src/
-|   |-- main.jsx         # React application
+|   |-- main.jsx         # Entry point (mounts App, registers service worker)
+|   |-- App.jsx          # Orchestrator: state + handlers, delegates to pages
+|   |-- api/client.js    # Base URL, fetch wrapper, named endpoint helpers
+|   |-- hooks/           # useAuth (persisted session)
+|   |-- lib/             # Pure logic: ingredients, matching, shopping, calendar (+ *.test.js)
+|   |-- components/      # Sidebar, RecipeDetails
+|   |-- pages/           # ManageRecipes, RecipesLibrary, CalendarPage, ShoppingPage, DeciderPage
 |   `-- styles.css       # App styles
 `-- tests/               # Backend pytest suite
 ```
@@ -151,12 +159,14 @@ Recommended Vercel settings:
 
 ```powershell
 npm run build
+npm test
 .\.venv\Scripts\python.exe -m py_compile main.py api\index.py
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-These same checks (pytest + Vite build) run on every push and pull request via GitHub
-Actions (`.github/workflows/ci.yml`).
+`npm test` runs the Vitest suite (`vitest run`); use `npm run test:watch` while developing.
+The pytest + Vite build checks run on every push and pull request via GitHub Actions
+(`.github/workflows/ci.yml`).
 
 To test the Vercel API wrapper locally:
 
