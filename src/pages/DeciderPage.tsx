@@ -1,4 +1,28 @@
-import { RecipeContent, RecipeSummary } from "../components/RecipeDetails.jsx";
+import type { FormEvent } from "react";
+
+import type {
+  Difficulty,
+  ExternalRecommendation,
+  QuizForm,
+  Recipe,
+  Recommendation,
+} from "../types";
+import { RecipeContent, RecipeSummary } from "../components/RecipeDetails";
+
+type DeciderPageProps = {
+  quizForm: QuizForm;
+  setQuizForm: (form: QuizForm) => void;
+  loading: boolean;
+  recipes: Recipe[];
+  externalRecommendations: ExternalRecommendation[];
+  recommendations: Recommendation[];
+  onDecide: (event: FormEvent) => void;
+  onFindFromIngredients: () => void;
+  onPickRandom: () => void;
+  onGenerateExternal: () => void;
+  onSaveExternal: (option: ExternalRecommendation) => void;
+  onViewRecipe: (id: number) => void;
+};
 
 export function DeciderPage({
   quizForm,
@@ -13,7 +37,7 @@ export function DeciderPage({
   onGenerateExternal,
   onSaveExternal,
   onViewRecipe,
-}) {
+}: DeciderPageProps) {
   return (
     <div className="content-grid">
       <form className="recipe-form" onSubmit={onDecide}>
@@ -35,7 +59,9 @@ export function DeciderPage({
             Max difficulty
             <select
               value={quizForm.difficulty}
-              onChange={(event) => setQuizForm({ ...quizForm, difficulty: event.target.value })}
+              onChange={(event) =>
+                setQuizForm({ ...quizForm, difficulty: event.target.value as Difficulty })
+              }
             >
               <option value="easy">Easy</option>
               <option value="medium">Medium</option>
@@ -73,7 +99,7 @@ export function DeciderPage({
         <label>
           Main ingredients on hand
           <textarea
-            rows="5"
+            rows={5}
             value={quizForm.available_ingredients}
             onChange={(event) =>
               setQuizForm({ ...quizForm, available_ingredients: event.target.value })

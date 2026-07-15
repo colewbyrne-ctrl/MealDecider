@@ -1,6 +1,8 @@
 // Blank form templates used to initialize and reset the recipe and quiz forms.
 
-export const blankRecipe = {
+import type { QuizForm, RecipeForm } from "../types";
+
+export const blankRecipe: RecipeForm = {
   name: "",
   time_minutes: 30,
   cuisine: "",
@@ -10,7 +12,7 @@ export const blankRecipe = {
   instructions: "",
 };
 
-export const blankQuiz = {
+export const blankQuiz: QuizForm = {
   max_time_minutes: 30,
   difficulty: "easy",
   cuisine: "",

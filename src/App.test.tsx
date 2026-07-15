@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import App from "./App.jsx";
+import App from "./App";
 
 describe("App (smoke)", () => {
   beforeEach(() => {

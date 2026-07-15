@@ -1,20 +1,34 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 
-import * as api from "./api/client.js";
-import { Sidebar } from "./components/Sidebar.jsx";
-import { useAuth } from "./hooks/useAuth.js";
-import { buildCalendarDays } from "./lib/calendar.js";
-import { blankQuiz, blankRecipe } from "./lib/constants.js";
-import { matchRecipesByIngredients } from "./lib/ingredientMatch.js";
-import { preparePhotoForScan } from "./lib/photo.js";
-import { buildShoppingItems } from "./lib/shopping.js";
-import { CalendarPage } from "./pages/CalendarPage.jsx";
-import { DeciderPage } from "./pages/DeciderPage.jsx";
-import { ManageRecipes } from "./pages/ManageRecipes.jsx";
-import { RecipesLibrary } from "./pages/RecipesLibrary.jsx";
-import { ShoppingPage } from "./pages/ShoppingPage.jsx";
+import * as api from "./api/client";
+import { Sidebar } from "./components/Sidebar";
+import { useAuth } from "./hooks/useAuth";
+import { buildCalendarDays } from "./lib/calendar";
+import { blankQuiz, blankRecipe } from "./lib/constants";
+import { matchRecipesByIngredients } from "./lib/ingredientMatch";
+import { preparePhotoForScan } from "./lib/photo";
+import { buildShoppingItems } from "./lib/shopping";
+import { CalendarPage } from "./pages/CalendarPage";
+import { DeciderPage } from "./pages/DeciderPage";
+import { ManageRecipes } from "./pages/ManageRecipes";
+import { RecipesLibrary } from "./pages/RecipesLibrary";
+import { ShoppingPage } from "./pages/ShoppingPage";
+import type {
+  AuthForm,
+  AuthMode,
+  CalendarInput,
+  ExternalRecommendation,
+  MealPlanEntry,
+  MealPreference,
+  Page,
+  Recipe,
+  RecipeCalendarEntry,
+  RecipeForm,
+  Recommendation,
+} from "./types";
 
-const pageTitles = {
+const pageTitles: Record<Page, [string, string]> = {
   manage: ["Recipe Manager", "Add recipe"],
   recipes: ["Library", "Recipes"],
   calendar: ["Meal Plan", "Two-week calendar"],
@@ -24,24 +38,26 @@ const pageTitles = {
 
 export default function App() {
   const { token, user, saveSession, clearAuth } = useAuth();
-  const [page, setPage] = useState("manage");
-  const [authMode, setAuthMode] = useState("login");
-  const [authForm, setAuthForm] = useState({ name: "", email: "", password: "" });
-  const [recipes, setRecipes] = useState([]);
-  const [recipeForm, setRecipeForm] = useState(blankRecipe);
-  const [editingId, setEditingId] = useState(null);
-  const [selectedRecipeId, setSelectedRecipeId] = useState(null);
+  const [page, setPage] = useState<Page>("manage");
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [authForm, setAuthForm] = useState<AuthForm>({ name: "", email: "", password: "" });
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [recipeForm, setRecipeForm] = useState<RecipeForm>(blankRecipe);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [selectedRecipeId, setSelectedRecipeId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [quizForm, setQuizForm] = useState(blankQuiz);
-  const [recommendations, setRecommendations] = useState([]);
-  const [externalRecommendations, setExternalRecommendations] = useState([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [externalRecommendations, setExternalRecommendations] = useState<ExternalRecommendation[]>(
+    [],
+  );
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [photoPreview, setPhotoPreview] = useState("");
-  const [mealPlanEntries, setMealPlanEntries] = useState([]);
-  const [calendarInputs, setCalendarInputs] = useState({});
-  const [shoppingEntryIds, setShoppingEntryIds] = useState([]);
-  const [checkedShoppingItems, setCheckedShoppingItems] = useState({});
+  const [mealPlanEntries, setMealPlanEntries] = useState<MealPlanEntry[]>([]);
+  const [calendarInputs, setCalendarInputs] = useState<Record<string, CalendarInput>>({});
+  const [shoppingEntryIds, setShoppingEntryIds] = useState<number[]>([]);
+  const [checkedShoppingItems, setCheckedShoppingItems] = useState<Record<string, boolean>>({});
   const calendarDays = useMemo(buildCalendarDays, []);
 
   const filteredRecipes = useMemo(() => {
@@ -70,8 +86,8 @@ export default function App() {
     () => recipes.find((recipe) => recipe.id === selectedRecipeId) || null,
     [recipes, selectedRecipeId],
   );
-  const calendarRecipeEntries = useMemo(
-    () => mealPlanEntries.filter((entry) => entry.recipe),
+  const calendarRecipeEntries = useMemo<RecipeCalendarEntry[]>(
+    () => mealPlanEntries.filter((entry): entry is RecipeCalendarEntry => entry.recipe !== null),
     [mealPlanEntries],
   );
   const selectedShoppingEntries = useMemo(
@@ -109,7 +125,7 @@ export default function App() {
     );
   }, [shoppingItems]);
 
-  async function handleAuth(event) {
+  async function handleAuth(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
     setMessage("");
@@ -124,7 +140,7 @@ export default function App() {
       setPage("recipes");
       setMessage(`Signed in as ${data.user.name}.`);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -135,7 +151,7 @@ export default function App() {
       const data = await api.getRecipes(token);
       setRecipes(data);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     }
   }
 
@@ -144,11 +160,11 @@ export default function App() {
       const data = await api.getMealPlan(token, calendarDays[0].date, 14);
       setMealPlanEntries(data.entries || []);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     }
   }
 
-  async function saveRecipe(event) {
+  async function saveRecipe(event: FormEvent) {
     event.preventDefault();
     setMessage("");
 
@@ -161,9 +177,9 @@ export default function App() {
     }
 
     const payload = {
-      ...recipeForm,
       name: recipeName,
       cuisine,
+      difficulty: recipeForm.difficulty,
       time_minutes: timeMinutes,
       tags: recipeForm.tags.trim() || null,
       ingredients: recipeForm.ingredients.trim() || null,
@@ -191,13 +207,13 @@ export default function App() {
       setPage("recipes");
       await loadRecipes();
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     } finally {
       setLoading(false);
     }
   }
 
-  async function deleteRecipe(recipeId) {
+  async function deleteRecipe(recipeId: number) {
     setLoading(true);
     setMessage("");
 
@@ -216,13 +232,13 @@ export default function App() {
       }
       setMessage("Recipe removed.");
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     } finally {
       setLoading(false);
     }
   }
 
-  function editRecipe(recipe) {
+  function editRecipe(recipe: Recipe) {
     setEditingId(recipe.id);
     setRecipeForm({
       name: recipe.name,
@@ -241,7 +257,7 @@ export default function App() {
     setRecipeForm(blankRecipe);
   }
 
-  async function decideMeal(event) {
+  async function decideMeal(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
     setMessage("");
@@ -249,8 +265,8 @@ export default function App() {
     setExternalRecommendations([]);
 
     const payload = {
-      ...quizForm,
       max_time_minutes: Number(quizForm.max_time_minutes),
+      difficulty: quizForm.difficulty,
       count: Number(quizForm.saved_count),
       cuisine: quizForm.cuisine.trim() || null,
       tags: quizForm.tags.trim() || null,
@@ -265,7 +281,7 @@ export default function App() {
       const count = (data.options || []).length;
       setMessage(`Found ${count} saved recipe option${count === 1 ? "" : "s"}.`);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -286,7 +302,7 @@ export default function App() {
       const count = (data.options || []).length;
       setMessage(`Picked ${count} saved recipe option${count === 1 ? "" : "s"}.`);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -329,9 +345,9 @@ export default function App() {
     setExternalRecommendations([]);
     setRecommendations([]);
 
-    const preferencePayload = {
-      ...quizForm,
+    const preferencePayload: MealPreference = {
       max_time_minutes: Number(quizForm.max_time_minutes),
+      difficulty: quizForm.difficulty,
       cuisine: quizForm.cuisine.trim() || null,
       tags: quizForm.tags.trim() || null,
     };
@@ -347,13 +363,13 @@ export default function App() {
       setPage("decider");
       setMessage(`Found ${(data.options || []).length} new recipe options.`);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     } finally {
       setLoading(false);
     }
   }
 
-  async function analyzeRecipePhoto(event) {
+  async function analyzeRecipePhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) {
@@ -383,47 +399,50 @@ export default function App() {
       setPage("manage");
       setMessage("Photo scanned. Review the recipe before saving.");
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     } finally {
       setLoading(false);
     }
   }
 
-  async function saveExternalRecommendation(option) {
+  async function saveExternalRecommendation(option: ExternalRecommendation) {
     if (!option?.recipe.external_id) {
       setMessage("This external recipe cannot be saved.");
       return;
     }
+    const externalId = option.recipe.external_id;
 
     setLoading(true);
     setMessage("");
 
     try {
-      const recipe = await api.saveExternalRecipe(token, option.recipe.external_id);
+      const recipe = await api.saveExternalRecipe(token, externalId);
       await loadRecipes();
       setExternalRecommendations((options) =>
-        options.filter(
-          (currentOption) => currentOption.recipe.external_id !== option.recipe.external_id,
-        ),
+        options.filter((currentOption) => currentOption.recipe.external_id !== externalId),
       );
       setSelectedRecipeId(recipe.id);
       setPage("recipes");
       setMessage(`${recipe.name} was added to your recipes.`);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     } finally {
       setLoading(false);
     }
   }
 
-  function updateCalendarInput(planDate, field, value) {
-    setCalendarInputs((current) => ({
-      ...current,
-      [planDate]: { recipeId: "", message: "", ...current[planDate], [field]: value },
-    }));
+  function updateCalendarInput(planDate: string, field: keyof CalendarInput, value: string) {
+    setCalendarInputs((current) => {
+      const existing = current[planDate] ?? { recipeId: "", message: "" };
+      return { ...current, [planDate]: { ...existing, [field]: value } };
+    });
   }
 
-  async function addMealPlanEntry(payload) {
+  async function addMealPlanEntry(payload: {
+    plan_date: string;
+    recipe_id?: number;
+    custom_message?: string;
+  }) {
     setLoading(true);
     setMessage("");
     try {
@@ -435,13 +454,13 @@ export default function App() {
       }));
       setMessage("Meal added to the calendar.");
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     } finally {
       setLoading(false);
     }
   }
 
-  async function addRecipeToDay(planDate) {
+  async function addRecipeToDay(planDate: string) {
     const recipeId = Number(calendarInputs[planDate]?.recipeId);
     if (!recipeId) {
       setMessage("Choose a recipe to add.");
@@ -450,7 +469,7 @@ export default function App() {
     await addMealPlanEntry({ plan_date: planDate, recipe_id: recipeId });
   }
 
-  async function addMessageToDay(planDate) {
+  async function addMessageToDay(planDate: string) {
     const customMessage = calendarInputs[planDate]?.message?.trim();
     if (!customMessage) {
       setMessage("Enter a custom message to add.");
@@ -459,7 +478,7 @@ export default function App() {
     await addMealPlanEntry({ plan_date: planDate, custom_message: customMessage });
   }
 
-  async function removeMealPlanEntry(entryId) {
+  async function removeMealPlanEntry(entryId: number) {
     setLoading(true);
     setMessage("");
     try {
@@ -468,21 +487,21 @@ export default function App() {
       setShoppingEntryIds((entryIds) => entryIds.filter((currentId) => currentId !== entryId));
       setMessage("Calendar entry removed.");
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     } finally {
       setLoading(false);
     }
   }
 
-  async function generateMealForDay(planDate) {
+  async function generateMealForDay(planDate: string) {
     setLoading(true);
     setMessage("");
     try {
       const entry = await api.generateMealForDay(token, planDate);
       setMealPlanEntries((entries) => [...entries, entry]);
-      setMessage(`${entry.recipe.name} was added to the calendar.`);
+      setMessage(`${entry.recipe?.name ?? "A recipe"} was added to the calendar.`);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -496,7 +515,7 @@ export default function App() {
       setMealPlanEntries(data.entries || []);
       setMessage("Empty days in the two-week schedule have been filled.");
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -525,24 +544,25 @@ export default function App() {
           : "The calendar is already empty.",
       );
     } catch (error) {
-      setMessage(error.message);
+      setMessage(errorMessage(error));
     } finally {
       setLoading(false);
     }
   }
 
-  function addCalendarEntryToShoppingList(entry) {
+  function addCalendarEntryToShoppingList(entry: MealPlanEntry) {
     if (!entry.recipe) {
       return;
     }
+    const recipe = entry.recipe;
     setShoppingEntryIds((entryIds) =>
       entryIds.includes(entry.id) ? entryIds : [...entryIds, entry.id],
     );
     setPage("shopping");
-    setMessage(`${entry.recipe.name} was added to the shopping list.`);
+    setMessage(`${recipe.name} was added to the shopping list.`);
   }
 
-  function removeCalendarEntryFromShoppingList(entryId) {
+  function removeCalendarEntryFromShoppingList(entryId: number) {
     setShoppingEntryIds((entryIds) => entryIds.filter((currentId) => currentId !== entryId));
   }
 
@@ -563,11 +583,11 @@ export default function App() {
     setMessage("Shopping list selections cleared.");
   }
 
-  function toggleShoppingItem(itemKey) {
+  function toggleShoppingItem(itemKey: string) {
     setCheckedShoppingItems((current) => ({ ...current, [itemKey]: !current[itemKey] }));
   }
 
-  function viewRecipe(recipeId) {
+  function viewRecipe(recipeId: number) {
     setSelectedRecipeId(recipeId);
     setPage("recipes");
   }
@@ -709,4 +729,8 @@ export default function App() {
       </section>
     </main>
   );
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Something went wrong";
 }

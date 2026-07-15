@@ -1,3 +1,24 @@
+import type { CalendarDay, CalendarInput, MealPlanEntry, Recipe } from "../types";
+
+type CalendarPageProps = {
+  calendarDays: CalendarDay[];
+  mealPlanEntries: MealPlanEntry[];
+  calendarInputs: Record<string, CalendarInput>;
+  recipes: Recipe[];
+  loading: boolean;
+  shoppingEntryIds: number[];
+  calendarRecipeEntries: MealPlanEntry[];
+  updateCalendarInput: (planDate: string, field: keyof CalendarInput, value: string) => void;
+  onAddRecipeToDay: (planDate: string) => void;
+  onAddMessageToDay: (planDate: string) => void;
+  onGenerateMealForDay: (planDate: string) => void;
+  onRemoveEntry: (entryId: number) => void;
+  onAddEntryToShopping: (entry: MealPlanEntry) => void;
+  onAddAllToShopping: () => void;
+  onGenerateFull: () => void;
+  onClear: () => void;
+};
+
 export function CalendarPage({
   calendarDays,
   mealPlanEntries,
@@ -15,7 +36,7 @@ export function CalendarPage({
   onAddAllToShopping,
   onGenerateFull,
   onClear,
-}) {
+}: CalendarPageProps) {
   return (
     <div className="calendar-page">
       <div className="calendar-toolbar">

@@ -52,7 +52,7 @@ def test_vercel_json_routes_only_api_to_python_function():
 
 
 def test_frontend_uses_vercel_api_path_in_production():
-    frontend_source = Path("src/api/client.js").read_text(encoding="utf-8")
+    frontend_source = Path("src/api/client.ts").read_text(encoding="utf-8")
 
     assert 'import.meta.env.PROD ? "/api"' in frontend_source
     assert '"http://127.0.0.1:8000"' in frontend_source

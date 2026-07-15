@@ -1,11 +1,14 @@
+import type { ComponentProps } from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { Sidebar } from "./Sidebar.jsx";
+import { Sidebar } from "./Sidebar";
 
-function renderSidebar(overrides = {}) {
-  const props = {
+type SidebarProps = ComponentProps<typeof Sidebar>;
+
+function renderSidebar(overrides: Partial<SidebarProps> = {}) {
+  const props: SidebarProps = {
     user: null,
     page: "manage",
     setPage: vi.fn(),
@@ -30,14 +33,14 @@ describe("Sidebar", () => {
   });
 
   it("shows nav and account box when signed in", () => {
-    renderSidebar({ user: { name: "Cole", email: "cole@example.com" } });
+    renderSidebar({ user: { id: 1, name: "Cole", email: "cole@example.com" } });
     expect(screen.getByRole("button", { name: "Manage" })).toBeInTheDocument();
     expect(screen.getByText("Cole")).toBeInTheDocument();
     expect(screen.getByText("Sign out")).toBeInTheDocument();
   });
 
   it("navigates when a nav button is clicked", async () => {
-    const { props } = renderSidebar({ user: { name: "Cole", email: "cole@example.com" } });
+    const { props } = renderSidebar({ user: { id: 1, name: "Cole", email: "cole@example.com" } });
     await userEvent.click(screen.getByRole("button", { name: "Calendar" }));
     expect(props.setPage).toHaveBeenCalledWith("calendar");
   });

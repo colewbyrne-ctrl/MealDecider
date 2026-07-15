@@ -1,5 +1,17 @@
-import { RecipeContent, RecipeSummary } from "../components/RecipeDetails.jsx";
-import { formatTime } from "../lib/format.js";
+import type { Recipe } from "../types";
+import { RecipeContent, RecipeSummary } from "../components/RecipeDetails";
+import { formatTime } from "../lib/format";
+
+type RecipesLibraryProps = {
+  searchTerm: string;
+  setSearchTerm: (term: string) => void;
+  filteredRecipes: Recipe[];
+  selectedRecipeId: number | null;
+  setSelectedRecipeId: (id: number) => void;
+  selectedRecipe: Recipe | null;
+  onEdit: (recipe: Recipe) => void;
+  onDelete: (id: number) => void;
+};
 
 export function RecipesLibrary({
   searchTerm,
@@ -10,7 +22,7 @@ export function RecipesLibrary({
   selectedRecipe,
   onEdit,
   onDelete,
-}) {
+}: RecipesLibraryProps) {
   return (
     <div className="recipe-browser">
       <div className="search-bar">

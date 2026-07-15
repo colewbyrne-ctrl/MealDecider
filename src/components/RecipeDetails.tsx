@@ -1,6 +1,7 @@
-import { formatDifficulty, formatTime } from "../lib/format.js";
+import type { DisplayRecipe } from "../types";
+import { formatDifficulty, formatTime } from "../lib/format";
 
-export function RecipeSummary({ recipe }) {
+export function RecipeSummary({ recipe }: { recipe: DisplayRecipe }) {
   return (
     <dl>
       <div>
@@ -19,7 +20,7 @@ export function RecipeSummary({ recipe }) {
   );
 }
 
-export function RecipeContent({ recipe }) {
+export function RecipeContent({ recipe }: { recipe: DisplayRecipe }) {
   return (
     <>
       {recipe.ingredients && (
