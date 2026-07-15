@@ -56,6 +56,167 @@ Meal Decider is a full-stack recipe manager for keeping a private list of meal o
 `-- tests/               # Backend pytest suite
 ```
 
+## Architecture
+
+### System overview
+
+A React + TypeScript single-page app talks to a FastAPI backend over a JSON API.
+Both are deployed on Vercel: the built static assets are served directly, and any
+request under `/api/*` is routed to the FastAPI app. The backend owns all
+persistence (Postgres) and brokers the two external services.
+
+```mermaid
+flowchart LR
+    UI["React + TypeScript SPA"]
+
+    subgraph Vercel
+      Static["Static dist/ assets"]
+      API["FastAPI (/api)<br/>api/index.py -> main.py"]
+    end
+
+    DB[("Postgres / Neon")]
+    Claude["Anthropic Claude<br/>Vision API"]
+    MealDB["TheMealDB API"]
+
+    UI -->|"initial load"| Static
+    UI -->|"fetch /api/* (Bearer token)"| API
+    API -->|"SQLAlchemy + Alembic"| DB
+    API -->|"photo -> recipe draft"| Claude
+    API -->|"external recipe suggestions"| MealDB
+```
+
+### Frontend structure
+
+`main.tsx` mounts `App.tsx`, the single orchestrator that holds all state and
+handlers. `App` delegates rendering to five page components, calls the backend
+only through the typed `api/client.ts`, and pushes all non-UI logic into the pure,
+unit-tested `lib/` modules.
+
+```mermaid
+flowchart TD
+    main["main.tsx<br/>entry"] --> App["App.tsx<br/>state + handlers"]
+    App --> useAuth["hooks/useAuth<br/>persisted session"]
+    App --> client["api/client.ts<br/>typed endpoints"]
+
+    App --> Pages
+    subgraph Pages["pages/"]
+      Manage[ManageRecipes]
+      Library[RecipesLibrary]
+      Calendar[CalendarPage]
+      Shopping[ShoppingPage]
+      Decider[DeciderPage]
+    end
+    Pages --> Comp["components/<br/>Sidebar, RecipeDetails"]
+
+    App --> Lib
+    subgraph Lib["lib/ (pure, tested)"]
+      ingredients
+      ingredientMatch
+      shopping
+      calendar
+    end
+
+    client -->|"fetch"| API["FastAPI /api"]
+```
+
+### Request lifecycle
+
+Every request carries the bearer token; the backend resolves the current user,
+scopes the query to that user, runs its logic, and returns a typed payload. The
+"pick a saved meal" flow below also exercises the recommendation scorer.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant D as DeciderPage
+    participant A as App.tsx
+    participant C as api/client.ts
+    participant F as FastAPI
+    participant DB as Postgres
+
+    U->>D: Set constraints, "Pick saved meal"
+    D->>A: onDecide(event)
+    A->>C: recommendRecipes(token, prefs)
+    C->>F: POST /recipes/recommend (Bearer token)
+    F->>F: get_current_user (verify token)
+    F->>DB: SELECT recipes WHERE owner_id = user
+    F->>F: filter, score, weighted-random pick N
+    F-->>C: { options: [{ recipe, reasons }] }
+    C-->>A: typed Recommendation[]
+    A->>D: render ranked options
+```
+
+### Recommendation scoring
+
+`/recipes/recommend` first filters saved recipes to those within the requested max
+time and difficulty, then scores each on four features combined by
+`meal_score` (weights in `SCORE_WEIGHTS`), and finally makes a weighted-random pick
+so repeated runs stay varied. The pure scoring helpers are covered by
+`tests/test_recommendation_engine.py`.
+
+```mermaid
+flowchart LR
+    recipes[("Saved recipes")] --> filter
+    prefs["Preferences<br/>time, difficulty, cuisine, tags"] --> filter{"Within max<br/>time & difficulty?"}
+    filter -->|no| drop["Excluded"]
+    filter -->|yes| feats["Feature vector"]
+
+    feats --> t["time_fit"]
+    feats --> d["difficulty_fit"]
+    feats --> cu["cuisine_fit"]
+    feats --> kw["keyword_fit"]
+
+    t --> score["meal_score<br/>0.2 / 0.2 / 0.3 / 0.3"]
+    d --> score
+    cu --> score
+    kw --> score
+    score --> pick["Weighted-random<br/>pick N options"]
+```
+
+### Data model
+
+Everything is scoped to a user. Recipes may be user-authored or imported from
+TheMealDB (`source` / `external_id`); calendar entries reference either a saved
+recipe or hold a free-text `custom_message`.
+
+```mermaid
+erDiagram
+    USER ||--o{ RECIPE : owns
+    USER ||--o{ AUTH_TOKEN : has
+    USER ||--o{ MEAL_PLAN_ENTRY : plans
+    RECIPE ||--o{ MEAL_PLAN_ENTRY : scheduled_in
+
+    USER {
+      int id PK
+      string email UK
+      string name
+      string password_hash
+    }
+    RECIPE {
+      int id PK
+      int owner_id FK
+      string name
+      int time_minutes
+      string cuisine
+      string difficulty
+      string source
+      string external_id
+    }
+    AUTH_TOKEN {
+      int id PK
+      string token UK
+      int user_id FK
+      string expires_at
+    }
+    MEAL_PLAN_ENTRY {
+      int id PK
+      int owner_id FK
+      string plan_date
+      int recipe_id FK
+      string custom_message
+    }
+```
+
 ## Local Setup
 
 ```powershell
