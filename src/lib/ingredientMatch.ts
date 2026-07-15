@@ -3,20 +3,39 @@
 // options to return, and produces ranked recommendations plus the counts the
 // caller needs to phrase a status message.
 
+import type { Recipe, Recommendation } from "../types";
 import {
   getCoreRecipeIngredients,
   ingredientsMatch,
   splitIngredientInput,
-} from "./ingredients.js";
+} from "./ingredients";
 
-export function matchRecipesByIngredients(recipes, availableInput, count) {
+type ScoredRecipe = {
+  recipe: Recipe;
+  matchedIngredients: string[];
+  missingIngredients: string[];
+  matchRatio: number;
+  canMake: boolean;
+};
+
+export type IngredientMatchResult = {
+  hasInput: boolean;
+  options: Recommendation[];
+  canMakeCount: number;
+};
+
+export function matchRecipesByIngredients(
+  recipes: Recipe[],
+  availableInput: string,
+  count: number,
+): IngredientMatchResult {
   const availableIngredients = splitIngredientInput(availableInput);
   if (availableIngredients.length === 0) {
     return { hasInput: false, options: [], canMakeCount: 0 };
   }
 
   const scoredRecipes = recipes
-    .map((recipe) => {
+    .map((recipe): ScoredRecipe | null => {
       const coreIngredients = getCoreRecipeIngredients(recipe);
       if (coreIngredients.length === 0) {
         return null;
@@ -40,7 +59,7 @@ export function matchRecipesByIngredients(recipes, availableInput, count) {
         canMake: missingIngredients.length === 0,
       };
     })
-    .filter(Boolean)
+    .filter((match): match is ScoredRecipe => match !== null)
     .filter((match) => match.matchedIngredients.length > 0)
     .sort((left, right) => {
       if (left.canMake !== right.canMake) {
@@ -54,7 +73,7 @@ export function matchRecipesByIngredients(recipes, availableInput, count) {
 
   const canMakeRecipes = scoredRecipes.filter((match) => match.canMake);
   const optionsSource = canMakeRecipes.length ? canMakeRecipes : scoredRecipes;
-  const options = optionsSource.slice(0, count).map((match) => {
+  const options: Recommendation[] = optionsSource.slice(0, count).map((match) => {
     const reasons = [`matches what you have: ${match.matchedIngredients.join(", ")}`];
     if (match.canMake) {
       reasons.push("only needs pantry basics beyond your ingredient list");

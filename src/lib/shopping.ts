@@ -1,22 +1,26 @@
 // Aggregates the ingredients of the selected calendar recipes into a single
 // deduplicated, quantity-summed shopping list. Pure and unit-testable.
 
-import { parseRecipeIngredients } from "./ingredients.js";
+import type { MealPlanEntry, ParsedIngredient, ShoppingItem } from "../types";
+import { parseRecipeIngredients } from "./ingredients";
 
-export function buildShoppingItems(entries) {
-  const itemMap = new Map();
+type ShoppingAccumulator = ParsedIngredient & { recipeNames: Set<string> };
+
+export function buildShoppingItems(entries: MealPlanEntry[]): ShoppingItem[] {
+  const itemMap = new Map<string, ShoppingAccumulator>();
 
   entries.forEach((entry) => {
-    if (!entry.recipe) {
+    const recipe = entry.recipe;
+    if (!recipe) {
       return;
     }
-    parseRecipeIngredients(entry.recipe).forEach((ingredient) => {
+    parseRecipeIngredients(recipe).forEach((ingredient) => {
       const existing = itemMap.get(ingredient.key);
       if (!existing) {
         itemMap.set(ingredient.key, {
           ...ingredient,
           amount: ingredient.amount,
-          recipeNames: new Set([entry.recipe.name]),
+          recipeNames: new Set([recipe.name]),
         });
         return;
       }
@@ -25,16 +29,14 @@ export function buildShoppingItems(entries) {
       } else {
         existing.amount = null;
       }
-      existing.recipeNames.add(entry.recipe.name);
+      existing.recipeNames.add(recipe.name);
     });
   });
 
   return Array.from(itemMap.values())
     .map((item) => ({
       ...item,
-      recipeNames: Array.from(item.recipeNames).sort((left, right) =>
-        left.localeCompare(right),
-      ),
+      recipeNames: Array.from(item.recipeNames).sort((left, right) => left.localeCompare(right)),
     }))
     .sort((left, right) => left.displayName.localeCompare(right.displayName));
 }

@@ -1,10 +1,28 @@
-const PAGES = [
+import type { FormEvent } from "react";
+
+import type { AuthForm, AuthMode, Page, User } from "../types";
+
+const PAGES: [Page, string][] = [
   ["manage", "Manage"],
   ["recipes", "Recipes"],
   ["calendar", "Calendar"],
   ["shopping", "Shopping"],
   ["decider", "Decide"],
 ];
+
+type SidebarProps = {
+  user: User | null;
+  page: Page;
+  setPage: (page: Page) => void;
+  onLogout: () => void;
+  loading: boolean;
+  message: string;
+  authMode: AuthMode;
+  setAuthMode: (mode: AuthMode) => void;
+  authForm: AuthForm;
+  setAuthForm: (form: AuthForm) => void;
+  onAuthSubmit: (event: FormEvent) => void;
+};
 
 export function Sidebar({
   user,
@@ -18,7 +36,7 @@ export function Sidebar({
   authForm,
   setAuthForm,
   onAuthSubmit,
-}) {
+}: SidebarProps) {
   return (
     <section className="sidebar">
       <div>

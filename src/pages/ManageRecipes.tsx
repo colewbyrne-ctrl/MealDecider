@@ -1,3 +1,21 @@
+import type { ChangeEvent, FormEvent } from "react";
+
+import type { Difficulty, RecipeForm } from "../types";
+
+type ManageRecipesProps = {
+  recipeForm: RecipeForm;
+  setRecipeForm: (form: RecipeForm) => void;
+  editingId: number | null;
+  loading: boolean;
+  photoPreview: string;
+  recipesCount: number;
+  onSubmit: (event: FormEvent) => void;
+  onCancelEdit: () => void;
+  onAnalyzePhoto: (event: ChangeEvent<HTMLInputElement>) => void;
+  onFindNewRecipe: () => void;
+  onOpenRecipeList: () => void;
+};
+
 export function ManageRecipes({
   recipeForm,
   setRecipeForm,
@@ -10,7 +28,7 @@ export function ManageRecipes({
   onAnalyzePhoto,
   onFindNewRecipe,
   onOpenRecipeList,
-}) {
+}: ManageRecipesProps) {
   return (
     <div className="content-grid">
       <form className="recipe-form" onSubmit={onSubmit} noValidate>
@@ -49,7 +67,7 @@ export function ManageRecipes({
             <select
               value={recipeForm.difficulty}
               onChange={(event) =>
-                setRecipeForm({ ...recipeForm, difficulty: event.target.value })
+                setRecipeForm({ ...recipeForm, difficulty: event.target.value as Difficulty })
               }
             >
               <option value="easy">Easy</option>
@@ -69,7 +87,7 @@ export function ManageRecipes({
         <label>
           Ingredients
           <textarea
-            rows="6"
+            rows={6}
             value={recipeForm.ingredients}
             onChange={(event) => setRecipeForm({ ...recipeForm, ingredients: event.target.value })}
             placeholder="Add one ingredient per line"
@@ -78,7 +96,7 @@ export function ManageRecipes({
         <label>
           Instructions
           <textarea
-            rows="8"
+            rows={8}
             value={recipeForm.instructions}
             onChange={(event) =>
               setRecipeForm({ ...recipeForm, instructions: event.target.value })

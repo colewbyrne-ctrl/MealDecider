@@ -1,4 +1,18 @@
-import { formatAmount } from "../lib/ingredients.js";
+import type { MealPlanEntry, RecipeCalendarEntry, ShoppingItem } from "../types";
+import { formatAmount } from "../lib/ingredients";
+
+type ShoppingPageProps = {
+  calendarRecipeEntries: RecipeCalendarEntry[];
+  shoppingEntryIds: number[];
+  selectedShoppingEntries: RecipeCalendarEntry[];
+  shoppingItems: ShoppingItem[];
+  checkedShoppingItems: Record<string, boolean>;
+  onAdd: (entry: MealPlanEntry) => void;
+  onRemove: (entryId: number) => void;
+  onAddAll: () => void;
+  onDeselectAll: () => void;
+  onToggleItem: (itemKey: string) => void;
+};
 
 export function ShoppingPage({
   calendarRecipeEntries,
@@ -11,7 +25,7 @@ export function ShoppingPage({
   onAddAll,
   onDeselectAll,
   onToggleItem,
-}) {
+}: ShoppingPageProps) {
   return (
     <div className="shopping-page">
       <div className="shopping-layout">

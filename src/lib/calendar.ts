@@ -1,11 +1,13 @@
 // Builds the rolling two-week calendar window shown on the meal-plan page.
 
-export function toLocalDateString(date) {
+import type { CalendarDay } from "../types";
+
+export function toLocalDateString(date: Date): string {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return offsetDate.toISOString().slice(0, 10);
 }
 
-export function buildCalendarDays() {
+export function buildCalendarDays(): CalendarDay[] {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   return Array.from({ length: 14 }, (_, index) => {

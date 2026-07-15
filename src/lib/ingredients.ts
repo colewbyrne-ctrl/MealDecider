@@ -2,7 +2,9 @@
 // Pure functions with no React or DOM dependencies, so they are unit-testable
 // on their own and shared by the ingredient finder and the shopping list.
 
-export const pantryIngredients = new Set([
+import type { ParsedIngredient } from "../types";
+
+export const pantryIngredients = new Set<string>([
   "baking powder",
   "baking soda",
   "bay leaf",
@@ -38,7 +40,7 @@ export const pantryIngredients = new Set([
   "water",
 ]);
 
-export const ingredientWordsToIgnore = new Set([
+export const ingredientWordsToIgnore = new Set<string>([
   "and",
   "chopped",
   "crushed",
@@ -61,7 +63,7 @@ export const ingredientWordsToIgnore = new Set([
   "taste",
 ]);
 
-export const measurementUnits = new Set([
+export const measurementUnits = new Set<string>([
   "bag",
   "bags",
   "bottle",
@@ -114,7 +116,7 @@ export const measurementUnits = new Set([
   "tsp",
 ]);
 
-export const unitAliases = {
+export const unitAliases: Record<string, string> = {
   bag: "bag",
   bags: "bag",
   bottle: "bottle",
@@ -167,7 +169,7 @@ export const unitAliases = {
   tsp: "tsp",
 };
 
-export function parseAmountToken(token) {
+export function parseAmountToken(token: string): number | null {
   const normalized = token.trim().replace(",", ".");
   if (!normalized) {
     return null;
@@ -190,7 +192,7 @@ export function parseAmountToken(token) {
   return null;
 }
 
-export function formatAmount(amount) {
+export function formatAmount(amount: number | null | undefined): string {
   if (amount === null || amount === undefined) {
     return "";
   }
@@ -198,7 +200,7 @@ export function formatAmount(amount) {
   return Number.isInteger(rounded) ? String(rounded) : String(rounded);
 }
 
-export function normalizeIngredientName(value) {
+export function normalizeIngredientName(value: string): string {
   return value
     .toLowerCase()
     .replace(/\([^)]*\)/g, "")
@@ -207,7 +209,7 @@ export function normalizeIngredientName(value) {
     .replace(/\s+/g, " ");
 }
 
-export function singularizeIngredient(value) {
+export function singularizeIngredient(value: string): string {
   if (value.endsWith("ies") && value.length > 4) {
     return `${value.slice(0, -3)}y`;
   }
@@ -220,7 +222,7 @@ export function singularizeIngredient(value) {
   return value;
 }
 
-export function normalizeIngredientForMatch(value) {
+export function normalizeIngredientForMatch(value: string): string {
   return normalizeIngredientName(value)
     .split(/\s+/)
     .filter((word) => word && !ingredientWordsToIgnore.has(word))
@@ -228,7 +230,7 @@ export function normalizeIngredientForMatch(value) {
     .join(" ");
 }
 
-export function isPantryIngredient(value) {
+export function isPantryIngredient(value: string): boolean {
   const ingredient = normalizeIngredientForMatch(value);
   if (!ingredient) {
     return true;
@@ -241,7 +243,7 @@ export function isPantryIngredient(value) {
     .every((word) => pantryIngredients.has(word) || ingredientWordsToIgnore.has(word));
 }
 
-export function ingredientsMatch(availableIngredient, recipeIngredient) {
+export function ingredientsMatch(availableIngredient: string, recipeIngredient: string): boolean {
   return (
     availableIngredient === recipeIngredient ||
     availableIngredient.includes(recipeIngredient) ||
@@ -249,19 +251,19 @@ export function ingredientsMatch(availableIngredient, recipeIngredient) {
   );
 }
 
-export function splitIngredientInput(value) {
+export function splitIngredientInput(value: string): string[] {
   return value
     .split(/\r?\n|,/)
     .map(normalizeIngredientForMatch)
     .filter((ingredient) => ingredient && !isPantryIngredient(ingredient));
 }
 
-export function normalizeMeasurementUnit(value) {
+export function normalizeMeasurementUnit(value: string): string {
   const unit = value.toLowerCase().replace(/\.$/, "");
   return unitAliases[unit] || unit;
 }
 
-export function parseIngredientLine(line) {
+export function parseIngredientLine(line: string): ParsedIngredient | null {
   const cleaned = line.replace(/^[-*]\s*/, "").trim();
   if (!cleaned) {
     return null;
@@ -311,14 +313,14 @@ export function parseIngredientLine(line) {
   };
 }
 
-export function parseRecipeIngredients(recipe) {
+export function parseRecipeIngredients(recipe: { ingredients: string | null }): ParsedIngredient[] {
   return (recipe.ingredients || "")
     .split(/\r?\n|,/)
     .map(parseIngredientLine)
-    .filter(Boolean);
+    .filter((ingredient): ingredient is ParsedIngredient => ingredient !== null);
 }
 
-export function getCoreRecipeIngredients(recipe) {
+export function getCoreRecipeIngredients(recipe: { ingredients: string | null }): string[] {
   return Array.from(
     new Set(
       parseRecipeIngredients(recipe)

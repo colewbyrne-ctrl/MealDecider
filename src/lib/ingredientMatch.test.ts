@@ -1,10 +1,26 @@
 import { describe, it, expect } from "vitest";
-import { matchRecipesByIngredients } from "./ingredientMatch.js";
+import { matchRecipesByIngredients } from "./ingredientMatch";
+import type { Recipe } from "../types";
 
-const recipes = [
-  { id: 1, name: "Chicken and Rice", ingredients: "1 lb chicken\n2 cups rice\nsalt" },
-  { id: 2, name: "Chicken Broccoli Bake", ingredients: "1 lb chicken\nbroccoli\ncheese" },
-  { id: 3, name: "Beef Tacos", ingredients: "1 lb beef\ntortillas\nlettuce" },
+function makeRecipe(overrides: Partial<Recipe> & { id: number; name: string }): Recipe {
+  return {
+    time_minutes: 30,
+    cuisine: "Any",
+    difficulty: "easy",
+    tags: null,
+    ingredients: null,
+    instructions: null,
+    source: "user",
+    source_url: null,
+    external_id: null,
+    ...overrides,
+  };
+}
+
+const recipes: Recipe[] = [
+  makeRecipe({ id: 1, name: "Chicken and Rice", ingredients: "1 lb chicken\n2 cups rice\nsalt" }),
+  makeRecipe({ id: 2, name: "Chicken Broccoli Bake", ingredients: "1 lb chicken\nbroccoli\ncheese" }),
+  makeRecipe({ id: 3, name: "Beef Tacos", ingredients: "1 lb beef\ntortillas\nlettuce" }),
 ];
 
 describe("matchRecipesByIngredients", () => {
@@ -22,9 +38,7 @@ describe("matchRecipesByIngredients", () => {
 
   it("includes a can-make reason for fully matched recipes", () => {
     const result = matchRecipesByIngredients(recipes, "chicken, rice", 5);
-    expect(result.options[0].reasons.some((r) => r.includes("only needs pantry basics"))).toBe(
-      true,
-    );
+    expect(result.options[0].reasons.some((r) => r.includes("only needs pantry basics"))).toBe(true);
   });
 
   it("falls back to closest matches when nothing is fully makeable", () => {

@@ -19,11 +19,11 @@ Meal Decider is a full-stack recipe manager for keeping a private list of meal o
 
 ## Tech Stack
 
-- Frontend: React, Vite, CSS, componentized into pages/hooks/lib with a shared API client
+- Frontend: React + TypeScript, Vite, CSS, componentized into pages/hooks/lib with a shared, typed API client
 - Backend: Python, FastAPI, SQLAlchemy, Pydantic
 - Database: Postgres, with Alembic migrations
 - Testing: pytest (backend), Vitest + React Testing Library (frontend)
-- CI: GitHub Actions (pytest + Vite build)
+- CI: GitHub Actions (pytest + typecheck + Vite build)
 
 ## Project Structure
 
@@ -40,14 +40,16 @@ Meal Decider is a full-stack recipe manager for keeping a private list of meal o
 |-- package.json         # Frontend scripts and dependencies
 |-- vercel.json          # Vercel build and routing configuration
 |-- index.html           # Vite entry HTML
-|-- .github/workflows/   # CI pipeline (pytest + Vite build)
+|-- .github/workflows/   # CI pipeline (pytest + typecheck + Vite build)
+|-- tsconfig.json        # TypeScript configuration
 |-- vite.config.js       # Vite + Vitest configuration
 |-- src/
-|   |-- main.jsx         # Entry point (mounts App, registers service worker)
-|   |-- App.jsx          # Orchestrator: state + handlers, delegates to pages
-|   |-- api/client.js    # Base URL, fetch wrapper, named endpoint helpers
+|   |-- main.tsx         # Entry point (mounts App, registers service worker)
+|   |-- App.tsx          # Orchestrator: state + handlers, delegates to pages
+|   |-- types.ts         # Shared domain types (Recipe, MealPlanEntry, ...)
+|   |-- api/client.ts    # Base URL, typed fetch wrapper, named endpoint helpers
 |   |-- hooks/           # useAuth (persisted session)
-|   |-- lib/             # Pure logic: ingredients, matching, shopping, calendar (+ *.test.js)
+|   |-- lib/             # Pure logic: ingredients, matching, shopping, calendar (+ *.test.ts)
 |   |-- components/      # Sidebar, RecipeDetails
 |   |-- pages/           # ManageRecipes, RecipesLibrary, CalendarPage, ShoppingPage, DeciderPage
 |   `-- styles.css       # App styles
@@ -158,15 +160,16 @@ Recommended Vercel settings:
 ## Verification
 
 ```powershell
-npm run build
-npm test
+npm run typecheck      # tsc --noEmit
+npm test               # Vitest suite
+npm run build          # typecheck + Vite production build
 .\.venv\Scripts\python.exe -m py_compile main.py api\index.py
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-`npm test` runs the Vitest suite (`vitest run`); use `npm run test:watch` while developing.
-The pytest + Vite build checks run on every push and pull request via GitHub Actions
-(`.github/workflows/ci.yml`).
+`npm run build` runs `tsc --noEmit && vite build`, so a type error fails the build. Use
+`npm run test:watch` while developing. These checks (pytest + typecheck + Vite build) run on
+every push and pull request via GitHub Actions (`.github/workflows/ci.yml`).
 
 To test the Vercel API wrapper locally:
 

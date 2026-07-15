@@ -1,9 +1,12 @@
 import { createRoot } from "react-dom/client";
 
-import App from "./App.jsx";
+import App from "./App";
 import "./styles.css";
 
-createRoot(document.getElementById("root")).render(<App />);
+const rootElement = document.getElementById("root");
+if (rootElement) {
+  createRoot(rootElement).render(<App />);
+}
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => {

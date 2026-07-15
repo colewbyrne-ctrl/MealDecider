@@ -10,7 +10,7 @@ import {
   parseRecipeIngredients,
   singularizeIngredient,
   splitIngredientInput,
-} from "./ingredients.js";
+} from "./ingredients";
 
 describe("parseAmountToken", () => {
   it("parses integers, decimals, and comma decimals", () => {
@@ -84,10 +84,7 @@ describe("ingredientsMatch", () => {
 
 describe("splitIngredientInput", () => {
   it("splits on newlines/commas and drops pantry staples", () => {
-    expect(splitIngredientInput("Chicken, rice\nsalt, olive oil")).toEqual([
-      "chicken",
-      "rice",
-    ]);
+    expect(splitIngredientInput("Chicken, rice\nsalt, olive oil")).toEqual(["chicken", "rice"]);
   });
 });
 
@@ -103,15 +100,15 @@ describe("parseIngredientLine", () => {
 
   it("parses compact units like 200g", () => {
     const parsed = parseIngredientLine("200g chicken");
-    expect(parsed.amount).toBe(200);
-    expect(parsed.unit).toBe("g");
-    expect(parsed.displayName).toBe("chicken");
+    expect(parsed?.amount).toBe(200);
+    expect(parsed?.unit).toBe("g");
+    expect(parsed?.displayName).toBe("chicken");
   });
 
   it("handles bullet prefixes and missing amounts", () => {
     const parsed = parseIngredientLine("- Salt to taste");
-    expect(parsed.amount).toBeNull();
-    expect(parsed.displayName).toBe("salt to taste");
+    expect(parsed?.amount).toBeNull();
+    expect(parsed?.displayName).toBe("salt to taste");
   });
 
   it("returns null for blank lines", () => {

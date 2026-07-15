@@ -2,16 +2,16 @@
 // downscale it on a canvas, and return a compressed JPEG data URL to send to the
 // vision endpoint. Depends on DOM APIs (FileReader, Image, canvas).
 
-function readPhotoFile(file) {
+function readPhotoFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
+    reader.onload = () => resolve(reader.result as string);
     reader.onerror = () => reject(new Error("Could not read the selected photo"));
     reader.readAsDataURL(file);
   });
 }
 
-function loadPhoto(dataUrl) {
+function loadPhoto(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
@@ -20,7 +20,7 @@ function loadPhoto(dataUrl) {
   });
 }
 
-export async function preparePhotoForScan(file) {
+export async function preparePhotoForScan(file: File): Promise<string> {
   const originalDataUrl = await readPhotoFile(file);
   const image = await loadPhoto(originalDataUrl);
   const maxDimension = 1280;
@@ -31,6 +31,9 @@ export async function preparePhotoForScan(file) {
   canvas.width = width;
   canvas.height = height;
   const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Could not prepare the selected photo");
+  }
   context.drawImage(image, 0, 0, width, height);
   return canvas.toDataURL("image/jpeg", 0.82);
 }
